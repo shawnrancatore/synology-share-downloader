@@ -5,6 +5,8 @@
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 [![Windows](https://img.shields.io/badge/platform-Windows-0078D6)](https://github.com/shawnrancatore/synology-share-downloader/releases)
 
+<img width="1291" height="1038" alt="image" src="https://github.com/user-attachments/assets/0d5b2b76-5f66-4584-9c84-0c6b26488825" />
+
 **Download every file from a Synology share link — one file at a time, with
 resume — instead of squashing the whole folder into one giant ZIP.**
 
