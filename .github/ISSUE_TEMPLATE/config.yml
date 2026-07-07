@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Usage guide
+    url: https://github.com/shawnrancatore/synology-share-downloader/blob/main/docs/USAGE.md
+    about: How to install and use the app, step by step.

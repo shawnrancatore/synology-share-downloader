@@ -1,0 +1,12 @@
+Synology Share Downloader
+Copyright 2026 Dynamo Foundry LLC — a Software Company
+
+This product is licensed under the Apache License, Version 2.0.
+You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0
+
+This software is not affiliated with, endorsed by, or sponsored by Synology Inc.
+"Synology", "QuickConnect", and related marks are trademarks of Synology Inc.,
+used here only to describe interoperability.
+
+This product bundles the following third-party open-source components:
+  - Requests (Apache License 2.0) — https://github.com/psf/requests

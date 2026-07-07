@@ -1,0 +1,50 @@
+[build-system]
+requires = ["setuptools>=64", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "synology-share-downloader"
+dynamic = ["version"]
+description = "Reliable, resumable, file-by-file downloads from Synology folder-share links."
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "Apache-2.0" }
+authors = [{ name = "Dynamo Foundry LLC" }]
+maintainers = [{ name = "Shawn Rancatore", email = "shawn.rancatore@gmail.com" }]
+keywords = ["synology", "quickconnect", "gofile", "downloader", "resume"]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Environment :: Win32 (MS Windows)",
+    "Intended Audience :: End Users/Desktop",
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: Microsoft :: Windows",
+    "Programming Language :: Python :: 3",
+    "Topic :: Internet :: WWW/HTTP",
+    "Topic :: System :: Archiving :: Backup",
+]
+dependencies = ["requests>=2.28"]
+
+[project.urls]
+Homepage = "https://github.com/shawnrancatore/synology-share-downloader"
+Documentation = "https://github.com/shawnrancatore/synology-share-downloader/blob/main/docs/USAGE.md"
+Issues = "https://github.com/shawnrancatore/synology-share-downloader/issues"
+Changelog = "https://github.com/shawnrancatore/synology-share-downloader/blob/main/CHANGELOG.md"
+
+[project.gui-scripts]
+synology-share-downloader = "synology_share_downloader.gui:main"
+
+[tool.setuptools]
+packages = ["synology_share_downloader"]
+
+[tool.setuptools.dynamic]
+version = { attr = "synology_share_downloader.__version__" }
+
+[tool.ruff]
+line-length = 120
+target-version = "py39"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
