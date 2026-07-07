@@ -4,6 +4,16 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.1] — 2026-07-07
+
+Maintenance release — no changes to the application itself.
+
+### Changed
+- CI/build only: upgraded GitHub Actions to their Node.js 24 majors
+  (`checkout@v5`, `setup-python@v6`, `upload-artifact@v6`,
+  `action-gh-release@v3`) to clear Node.js 20 deprecation warnings.
+- Fixed the test import path so the suite runs under bare `pytest` in CI.
+
 ## [1.0.0] — 2026-07-07
 
 Initial public release.
@@ -25,4 +35,5 @@ Initial public release.
 - Single portable Windows `.exe` build via PyInstaller, plus a portable release
   `.zip`, produced automatically on tagged releases.
 
+[1.0.1]: https://github.com/shawnrancatore/synology-share-downloader/releases/tag/v1.0.1
 [1.0.0]: https://github.com/shawnrancatore/synology-share-downloader/releases/tag/v1.0.0
