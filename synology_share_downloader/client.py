@@ -327,8 +327,8 @@ class SynoShareClient:
                 break
         return entries
 
-    def walk_files(self, folder_path, stop=None):
-        """Yield file entries recursively under folder_path (depth-first)."""
+    def walk(self, folder_path, stop=None):
+        """Yield every entry (folders and files) recursively (depth-first)."""
         stack = [folder_path]
         while stack:
             if stop and stop():
@@ -337,10 +337,15 @@ class SynoShareClient:
             for e in self.list_folder(cur):
                 if stop and stop():
                     return
+                yield e
                 if e["isdir"]:
                     stack.append(e["path"])
-                else:
-                    yield e
+
+    def walk_files(self, folder_path, stop=None):
+        """Yield file entries recursively under folder_path (depth-first)."""
+        for e in self.walk(folder_path, stop=stop):
+            if not e["isdir"]:
+                yield e
 
     # ---- step 4: download (resumable) ------------------------------------
     def download_file(self, remote_path, local_path, expected_size=None,

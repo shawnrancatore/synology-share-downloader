@@ -250,21 +250,32 @@ class App:
 
     def _download_worker(self, picks, dest):
         try:
-            # 1) enumerate every file to download
+            # 1) enumerate every file to download (and every folder to re-stamp)
             self.set_status("Scanning selected items…")
-            jobs = []   # (remote_path, local_path, size, mtime, crtime)
+            jobs = []       # (remote_path, local_path, size, mtime, crtime)
+            dir_stamps = []  # (local_path, mtime, crtime) -- applied last
             total_bytes = 0
+
+            def local_of(remote_path, base_parent):
+                rel = remote_path[len(base_parent):].lstrip("/")
+                return os.path.join(dest, *rel.split("/"))
+
             for m in picks:
                 base_parent = m["path"].rsplit("/", 1)[0]
                 if m["isdir"]:
-                    for f in self.client.walk_files(m["path"], stop=self.stop_flag.is_set):
-                        rel = f["path"][len(base_parent):].lstrip("/")
-                        jobs.append((f["path"], os.path.join(dest, *rel.split("/")),
-                                     f["size"], f.get("mtime"), f.get("crtime")))
-                        total_bytes += f["size"]
+                    # the picked folder itself, then everything under it
+                    dir_stamps.append((local_of(m["path"], base_parent),
+                                       m.get("mtime"), m.get("crtime")))
+                    for e in self.client.walk(m["path"], stop=self.stop_flag.is_set):
+                        lp = local_of(e["path"], base_parent)
+                        if e["isdir"]:
+                            dir_stamps.append((lp, e.get("mtime"), e.get("crtime")))
+                        else:
+                            jobs.append((e["path"], lp, e["size"],
+                                         e.get("mtime"), e.get("crtime")))
+                            total_bytes += e["size"]
                 else:
-                    rel = m["path"][len(base_parent):].lstrip("/")
-                    jobs.append((m["path"], os.path.join(dest, *rel.split("/")),
+                    jobs.append((m["path"], local_of(m["path"], base_parent),
                                  m["size"], m.get("mtime"), m.get("crtime")))
                     total_bytes += m["size"]
                 if self.stop_flag.is_set():
@@ -273,7 +284,8 @@ class App:
             if self.stop_flag.is_set():
                 self.q.put(("dl_done", "Cancelled before starting."))
                 return
-            self.log_msg("Found %d file(s), %s total." % (len(jobs), human(total_bytes)))
+            self.log_msg("Found %d file(s) in %d folder(s), %s total." %
+                         (len(jobs), len(dir_stamps), human(total_bytes)))
 
             # 2) download sequentially with resume + skip-complete
             done_bytes = 0
@@ -318,11 +330,27 @@ class App:
             if self.stop_flag.is_set():
                 self.q.put(("dl_done", "Cancelled. %d file(s) finished." % done_files))
             else:
+                # Restore folder timestamps LAST -- writing files into a folder
+                # updates its modified time, so this must happen after every
+                # file and subfolder exists. os.utime on a folder does not touch
+                # its parent, so order doesn't matter; we create empty folders
+                # too so the structure is preserved exactly.
+                self.set_status("Restoring folder dates…")
+                for lp, mt, ct in dir_stamps:
+                    try:
+                        os.makedirs(lp, exist_ok=True)
+                    except OSError:
+                        pass
+                for lp, mt, ct in dir_stamps:
+                    apply_file_times(lp, mt, ct)
+
                 msg = "Done. %d file(s) downloaded" % done_files
                 if skipped:
                     msg += " (%d already complete)" % skipped
                 if failed:
                     msg += "; %d failed" % len(failed)
+                if dir_stamps:
+                    msg += "; %d folder date(s) preserved" % len(dir_stamps)
                 self.q.put(("dl_done", msg + "."))
         except Exception as e:
             self.q.put(("dl_done", "Stopped: %s" % e))

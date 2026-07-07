@@ -62,7 +62,8 @@ Click **Download selected**. You'll see:
 - the file name, counts, transfer speed, and estimated time remaining.
 
 When it finishes, your files are in the destination folder — with their
-**original dates** preserved, so they sort and look the way you expect.
+**original dates** preserved on both **files and folders** (and empty folders
+recreated), so everything sorts and looks the way you expect.
 
 ## Resuming and re-running
 

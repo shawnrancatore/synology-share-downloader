@@ -28,8 +28,9 @@ Nothing to install for the person running it: it's a single portable `.exe`.
 - ⬇️ **File-by-file downloads** — no forced ZIP.
 - ⏯️ **Resumable** — interrupted downloads continue via HTTP Range; finished
   files are skipped on re-run.
-- 🕒 **Preserves file dates** — modified time (and creation time on Windows) so
-  your files keep their familiar ages.
+- 🕒 **Preserves dates** — original modified time (and creation time on Windows)
+  on both **files and folders**, so everything keeps its familiar age. Empty
+  folders are recreated too.
 - 🌲 **Keeps the folder structure** under a destination you choose.
 - 📊 **Live progress** — per-file and overall, with speed and ETA.
 - 📦 **Portable** — a single `.exe`, no installer, no Python needed to run it.

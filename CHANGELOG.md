@@ -4,6 +4,13 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.2] — 2026-07-07
+
+### Added
+- **Folder dates are now preserved too** — downloaded folders get their original
+  modified time (and creation time on Windows), applied after their contents are
+  written so the dates stick. Empty folders from the share are recreated as well.
+
 ## [1.0.1] — 2026-07-07
 
 Maintenance release — no changes to the application itself.
@@ -35,5 +42,6 @@ Initial public release.
 - Single portable Windows `.exe` build via PyInstaller, plus a portable release
   `.zip`, produced automatically on tagged releases.
 
+[1.0.2]: https://github.com/shawnrancatore/synology-share-downloader/releases/tag/v1.0.2
 [1.0.1]: https://github.com/shawnrancatore/synology-share-downloader/releases/tag/v1.0.1
 [1.0.0]: https://github.com/shawnrancatore/synology-share-downloader/releases/tag/v1.0.0
