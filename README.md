@@ -1,3 +1,5 @@
+<img src="assets/icon.png" width="88" align="right" alt="app icon">
+
 # Synology Share Downloader
 
 [![Release](https://img.shields.io/github/v/release/shawnrancatore/synology-share-downloader?sort=semver)](https://github.com/shawnrancatore/synology-share-downloader/releases)
@@ -27,6 +29,8 @@ Nothing to install for the person running it: it's a single portable `.exe`.
 ## Features
 
 - 🗂️ **Browse the share** in a folder tree and pick exactly what you want.
+- 📥 **Download the entire share** in one click — with a total-size warning first.
+- 🚀 **Parallel downloads** (1–8 at once, configurable) for real speed.
 - ⬇️ **File-by-file downloads** — no forced ZIP.
 - ⏯️ **Resumable** — interrupted downloads continue via HTTP Range; finished
   files are skipped on re-run.
@@ -100,8 +104,9 @@ community rallies around rather than fragmenting into forks. Please:
 3. Fork, branch, and open a pull request. Keep PRs focused, run the tests
    (`pytest`) and linter (`ruff check .`), and describe the change clearly.
 
-Good first contributions: an app icon, a "download the whole share" button with
-a size warning, parallel downloads, macOS/Linux builds, or localization.
+Good first contributions: macOS/Linux release builds, localization, a
+drag-and-drop target for share links, an in-app update check, or code-signing
+the Windows build.
 
 ## License
 

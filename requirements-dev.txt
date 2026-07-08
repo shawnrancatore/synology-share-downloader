@@ -2,3 +2,4 @@
 pyinstaller>=6.0
 pytest>=7.0
 ruff>=0.4
+Pillow>=10.0   # only for regenerating the app icon (scripts/make_icon.py)

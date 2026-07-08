@@ -48,6 +48,20 @@ or the NAS can't be reached, you'll see a clear message explaining why.
 > **Tip:** Some shares expose a very large tree at the top level. Open the tree
 > and pick the specific subfolder you actually want rather than the entire root.
 
+### Or grab everything
+
+Prefer the whole thing? Click **Download entire share…**. The app first scans
+the share and then shows you **how many files and how much data** it will
+download, so you can confirm before it starts (and it warns you if the total is
+very large — some shares contain big system files). Choose your destination
+first, as below.
+
+### Downloading faster (parallel)
+
+The **Parallel** box (next to the buttons) controls how many files download at
+the same time — 1 to 8, default 4. Higher can be faster on good connections;
+lower is gentler. You can leave it at 4.
+
 ## 4. Choose where to save
 
 Next to **Save to**, click **Browse…** and pick a destination folder on your

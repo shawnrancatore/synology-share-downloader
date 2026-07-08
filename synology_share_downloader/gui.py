@@ -13,6 +13,7 @@
 # limitations under the License.
 """Tkinter GUI: connect to a share, browse it, pick what to download."""
 
+import concurrent.futures as cf
 import os
 import queue
 import threading
@@ -40,6 +41,8 @@ class App:
         self.worker = None
         self.stop_flag = threading.Event()
         self.downloading = False
+        self.confirm_event = threading.Event()
+        self.confirm_result = False
 
         self._build_menu()
         self._build_ui()
@@ -93,24 +96,34 @@ class App:
         bottom = ttk.LabelFrame(self.root, text="3.  Destination & download")
         bottom.pack(fill="x", **pad)
 
-        ttk.Label(bottom, text="Save to:").grid(row=0, column=0, sticky="e", padx=4, pady=4)
+        row0 = ttk.Frame(bottom)
+        row0.pack(fill="x", padx=4, pady=4)
+        ttk.Label(row0, text="Save to:").pack(side="left")
         self.dest_var = tk.StringVar(value=os.path.join(os.path.expanduser("~"), "Downloads"))
-        ttk.Entry(bottom, textvariable=self.dest_var).grid(row=0, column=1, sticky="we", padx=4, pady=4)
-        ttk.Button(bottom, text="Browse…", command=self.on_browse_dest).grid(row=0, column=2, padx=4, pady=4)
+        ttk.Entry(row0, textvariable=self.dest_var).pack(side="left", fill="x", expand=True, padx=6)
+        ttk.Button(row0, text="Browse…", command=self.on_browse_dest).pack(side="left")
 
-        self.download_btn = ttk.Button(bottom, text="Download selected", command=self.on_download, state="disabled")
-        self.download_btn.grid(row=0, column=3, padx=4, pady=4)
-        self.cancel_btn = ttk.Button(bottom, text="Cancel", command=self.on_cancel, state="disabled")
-        self.cancel_btn.grid(row=0, column=4, padx=4, pady=4)
-        bottom.columnconfigure(1, weight=1)
+        row1 = ttk.Frame(bottom)
+        row1.pack(fill="x", padx=4, pady=(0, 4))
+        self.download_btn = ttk.Button(row1, text="Download selected",
+                                       command=self.on_download, state="disabled")
+        self.download_btn.pack(side="left")
+        self.download_all_btn = ttk.Button(row1, text="Download entire share…",
+                                           command=self.on_download_all, state="disabled")
+        self.download_all_btn.pack(side="left", padx=6)
+        self.cancel_btn = ttk.Button(row1, text="Cancel", command=self.on_cancel, state="disabled")
+        self.cancel_btn.pack(side="left")
+        ttk.Label(row1, text="Parallel:").pack(side="left", padx=(14, 2))
+        self.parallel_var = tk.IntVar(value=4)
+        ttk.Spinbox(row1, from_=1, to=8, width=3, textvariable=self.parallel_var).pack(side="left")
 
         # progress
         self.overall = ttk.Progressbar(bottom, mode="determinate")
-        self.overall.grid(row=1, column=0, columnspan=5, sticky="we", padx=6, pady=(6, 0))
+        self.overall.pack(fill="x", padx=6, pady=(6, 0))
         self.cur = ttk.Progressbar(bottom, mode="determinate")
-        self.cur.grid(row=2, column=0, columnspan=5, sticky="we", padx=6, pady=2)
+        self.cur.pack(fill="x", padx=6, pady=2)
         self.prog_lbl = ttk.Label(bottom, text="")
-        self.prog_lbl.grid(row=3, column=0, columnspan=5, sticky="w", padx=6)
+        self.prog_lbl.pack(fill="x", padx=6, anchor="w")
 
         # --- log / status ---
         self.status = tk.StringVar(value="Enter a share link and password, then click Connect.")
@@ -178,6 +191,7 @@ class App:
                                  "size": 0, "loaded": True}
         self._fill_children(root_item, entries)
         self.download_btn.configure(state="normal")
+        self.download_all_btn.configure(state="normal")
         self.set_status("Connected. Select folders/files and choose a destination.")
 
     def _fill_children(self, parent_item, entries):
@@ -238,23 +252,43 @@ class App:
             picks.append(m)
         if not picks:
             return
+        self._start_download(picks, dest, confirm=False)
 
+    def on_download_all(self):
+        if self.downloading or not self.client:
+            return
+        dest = self.dest_var.get().strip()
+        if not dest:
+            messagebox.showwarning(APP_NAME, "Choose a destination folder.")
+            return
+        root_meta = {"path": self.client.root_path, "isdir": True, "size": 0,
+                     "mtime": None, "crtime": None}
+        self._start_download([root_meta], dest, confirm=True)
+
+    def _start_download(self, picks, dest, confirm):
+        try:
+            workers = max(1, min(8, int(self.parallel_var.get() or 4)))
+        except (tk.TclError, ValueError):
+            workers = 4
         self.stop_flag.clear()
         self.downloading = True
-        self.download_btn.configure(state="disabled")
-        self.connect_btn.configure(state="disabled")
+        for b in (self.download_btn, self.download_all_btn, self.connect_btn):
+            b.configure(state="disabled")
         self.cancel_btn.configure(state="normal")
+        self.overall["value"] = 0
+        self.cur["value"] = 0
         self.worker = threading.Thread(target=self._download_worker,
-                                       args=(picks, dest), daemon=True)
+                                       args=(picks, dest, confirm, workers), daemon=True)
         self.worker.start()
 
-    def _download_worker(self, picks, dest):
+    def _download_worker(self, picks, dest, confirm, workers):
         try:
             # 1) enumerate every file to download (and every folder to re-stamp)
             self.set_status("Scanning selected items…")
-            jobs = []       # (remote_path, local_path, size, mtime, crtime)
-            dir_stamps = []  # (local_path, mtime, crtime) -- applied last
+            jobs = []        # (remote_path, local_path, size, mtime, crtime)
+            dir_stamps = []   # (local_path, mtime, crtime) -- applied last
             total_bytes = 0
+            scanned = 0
 
             def local_of(remote_path, base_parent):
                 rel = remote_path[len(base_parent):].lstrip("/")
@@ -274,6 +308,10 @@ class App:
                             jobs.append((e["path"], lp, e["size"],
                                          e.get("mtime"), e.get("crtime")))
                             total_bytes += e["size"]
+                        scanned += 1
+                        if scanned % 200 == 0:
+                            self.set_status("Scanning… %d files, %s so far" %
+                                            (len(jobs), human(total_bytes)))
                 else:
                     jobs.append((m["path"], local_of(m["path"], base_parent),
                                  m["size"], m.get("mtime"), m.get("crtime")))
@@ -287,86 +325,131 @@ class App:
             self.log_msg("Found %d file(s) in %d folder(s), %s total." %
                          (len(jobs), len(dir_stamps), human(total_bytes)))
 
-            # 2) download sequentially with resume + skip-complete
-            done_bytes = 0
-            done_files = 0
-            skipped = 0
-            failed = []
+            # 2) size confirmation (for "Download entire share")
+            if confirm:
+                self.confirm_result = False
+                self.confirm_event.clear()
+                self.q.put(("confirm", (total_bytes, len(jobs))))
+                self.confirm_event.wait()
+                if not self.confirm_result:
+                    self.q.put(("dl_done", "Cancelled — nothing downloaded."))
+                    return
+
+            # 3) download in parallel, each file resumable + skip-if-complete
+            st = {"bytes": 0, "files": 0, "skipped": 0, "failed": []}
+            active = {}
+            lock = threading.Lock()
             start = time.time()
-            for idx, (rpath, lpath, size, mtime, crtime) in enumerate(jobs, 1):
+            last_emit = [0.0]
+            njobs = len(jobs)
+
+            def emit(force=False):
+                now = time.time()
+                with lock:
+                    cur = st["bytes"] + sum(active.values())
+                    df, na = st["files"], len(active)
+                if not force and now - last_emit[0] < 0.12 and cur < total_bytes:
+                    return
+                last_emit[0] = now
+                elapsed = max(now - start, 0.001)
+                speed = cur / elapsed
+                remain = (total_bytes - cur) / speed if speed > 0 else 0
+                self.q.put(("progress", {
+                    "overall": (cur / total_bytes * 100) if total_bytes else 100,
+                    "cur": (df / njobs * 100) if njobs else 100,
+                    "text": "%d/%d files  •  %d active  •  %s / %s  •  %s/s  •  ~%s left" % (
+                        df, njobs, na, human(cur), human(total_bytes),
+                        human(speed), _fmt_time(remain)),
+                }))
+
+            def do_job(job):
+                rpath, lpath, size, mtime, crtime = job
                 if self.stop_flag.is_set():
-                    break
+                    return
                 name = os.path.basename(lpath)
-                if os.path.exists(lpath) and size and os.path.getsize(lpath) == size:
-                    apply_file_times(lpath, mtime, crtime)
-                    done_bytes += size
-                    done_files += 1
-                    skipped += 1
-                    self._emit_progress(done_bytes, total_bytes, size, size,
-                                        name, idx, len(jobs), start)
-                    continue
-
-                base_done = done_bytes
-
-                def prog(d, t, _base=base_done, _size=size, _name=name, _idx=idx):
-                    self._emit_progress(_base + d, total_bytes, d, _size or t,
-                                        _name, _idx, len(jobs), start)
-
                 try:
+                    if os.path.exists(lpath) and size and os.path.getsize(lpath) == size:
+                        apply_file_times(lpath, mtime, crtime)
+                        with lock:
+                            st["bytes"] += size
+                            st["files"] += 1
+                            st["skipped"] += 1
+                        emit()
+                        return
+                    with lock:
+                        active[rpath] = 0
+
+                    def prog(d, t, _fid=rpath):
+                        with lock:
+                            active[_fid] = d
+                        emit()
+
                     ok = self.client.download_file(
                         rpath, lpath, size if size else None,
                         progress=prog, stop=self.stop_flag.is_set,
                         mtime=mtime, crtime=crtime)
-                    if ok:
-                        done_files += 1
-                        done_bytes = base_done + (size or os.path.getsize(lpath))
-                    else:
-                        break  # stopped
+                    with lock:
+                        got = active.pop(rpath, 0)
+                        if ok:
+                            st["bytes"] += size or got
+                            st["files"] += 1
                 except ShareError as e:
+                    with lock:
+                        active.pop(rpath, None)
+                        st["failed"].append(name)
                     self.log_msg("FAILED %s -- %s" % (name, e))
-                    failed.append(name)
-                    done_bytes = base_done + (size or 0)
+                except Exception as e:
+                    with lock:
+                        active.pop(rpath, None)
+                        st["failed"].append(name)
+                    self.log_msg("ERROR %s -- %s" % (name, e))
+                emit()
+
+            with cf.ThreadPoolExecutor(max_workers=workers) as ex:
+                list(ex.map(do_job, jobs))
+            emit(force=True)
 
             if self.stop_flag.is_set():
-                self.q.put(("dl_done", "Cancelled. %d file(s) finished." % done_files))
-            else:
-                # Restore folder timestamps LAST -- writing files into a folder
-                # updates its modified time, so this must happen after every
-                # file and subfolder exists. os.utime on a folder does not touch
-                # its parent, so order doesn't matter; we create empty folders
-                # too so the structure is preserved exactly.
-                self.set_status("Restoring folder dates…")
-                for lp, mt, ct in dir_stamps:
-                    try:
-                        os.makedirs(lp, exist_ok=True)
-                    except OSError:
-                        pass
-                for lp, mt, ct in dir_stamps:
-                    apply_file_times(lp, mt, ct)
+                self.q.put(("dl_done", "Cancelled. %d file(s) finished." % st["files"]))
+                return
 
-                msg = "Done. %d file(s) downloaded" % done_files
-                if skipped:
-                    msg += " (%d already complete)" % skipped
-                if failed:
-                    msg += "; %d failed" % len(failed)
-                if dir_stamps:
-                    msg += "; %d folder date(s) preserved" % len(dir_stamps)
-                self.q.put(("dl_done", msg + "."))
+            # 4) restore folder timestamps LAST -- writing files into a folder
+            # bumps its modified time, so this must happen after every file and
+            # subfolder exists. os.utime on a folder does not touch its parent,
+            # so order doesn't matter; empty folders are created too.
+            self.set_status("Restoring folder dates…")
+            for lp, mt, ct in dir_stamps:
+                try:
+                    os.makedirs(lp, exist_ok=True)
+                except OSError:
+                    pass
+            for lp, mt, ct in dir_stamps:
+                apply_file_times(lp, mt, ct)
+
+            msg = "Done. %d file(s) downloaded" % st["files"]
+            if st["skipped"]:
+                msg += " (%d already complete)" % st["skipped"]
+            if st["failed"]:
+                msg += "; %d failed" % len(st["failed"])
+            if dir_stamps:
+                msg += "; %d folder date(s) preserved" % len(dir_stamps)
+            self.q.put(("dl_done", msg + "."))
         except Exception as e:
             self.q.put(("dl_done", "Stopped: %s" % e))
 
-    def _emit_progress(self, done_bytes, total_bytes, cur_done, cur_total,
-                       name, idx, njobs, start):
-        elapsed = max(time.time() - start, 0.001)
-        speed = done_bytes / elapsed
-        remain = (total_bytes - done_bytes) / speed if speed > 0 else 0
-        self.q.put(("progress", {
-            "overall": (done_bytes / total_bytes * 100) if total_bytes else 100,
-            "cur": (cur_done / cur_total * 100) if cur_total else 100,
-            "text": "%s  [%d/%d]  %s / %s  •  %s/s  •  ~%s left" % (
-                name, idx, njobs, human(done_bytes), human(total_bytes),
-                human(speed), _fmt_time(remain)),
-        }))
+    def _ask_confirm(self, total_bytes, nfiles):
+        warn = ""
+        if total_bytes > 5 * 1024 ** 3:
+            warn = ("\n\n⚠  This is a large download. It may include big system "
+                    "files (e.g. pagefile.sys, hiberfil.sys). Make sure you have "
+                    "enough free disk space, and consider selecting only the "
+                    "folders you need instead.")
+        ok = messagebox.askyesno(
+            APP_NAME,
+            "Download the entire share to:\n%s\n\n%d files, %s total.%s\n\nContinue?"
+            % (self.dest_var.get(), nfiles, human(total_bytes), warn))
+        self.confirm_result = bool(ok)
+        self.confirm_event.set()
 
     def on_cancel(self):
         if self.downloading:
@@ -396,10 +479,12 @@ class App:
                     self.overall["value"] = payload["overall"]
                     self.cur["value"] = payload["cur"]
                     self.prog_lbl.configure(text=payload["text"])
+                elif kind == "confirm":
+                    self._ask_confirm(*payload)
                 elif kind == "dl_done":
                     self.downloading = False
-                    self.download_btn.configure(state="normal")
-                    self.connect_btn.configure(state="normal")
+                    for b in (self.download_btn, self.download_all_btn, self.connect_btn):
+                        b.configure(state="normal")
                     self.cancel_btn.configure(state="disabled")
                     self.cur["value"] = 0
                     self.set_status(payload)
@@ -409,12 +494,22 @@ class App:
         self.root.after(80, self._pump)
 
 
+def _set_window_icon(root):
+    try:
+        from .icon_data import ICON_PNG_B64
+        root._icon_img = tk.PhotoImage(data=ICON_PNG_B64)  # keep a reference
+        root.iconphoto(True, root._icon_img)
+    except Exception:
+        pass
+
+
 def main():
     root = tk.Tk()
     try:
         ttk.Style().theme_use("vista")  # nicer on Windows
     except tk.TclError:
         pass
+    _set_window_icon(root)
     App(root)
     root.mainloop()
 

@@ -55,10 +55,19 @@ synology_share_downloader/
   gui.py          # the Tkinter application
   about.py        # Help menu + About dialog
   util.py         # small formatting helpers (no GUI/network)
+  icon_data.py    # embedded window icon (generated)
 app.py            # launcher / PyInstaller entry point
 build.py          # builds the portable .exe (+ .zip)
+scripts/make_icon.py  # regenerates assets/icon.* and icon_data.py (needs Pillow)
 docs/USAGE.md     # end-user documentation
 tests/            # unit tests (no network needed)
+```
+
+To regenerate the app icon after editing `scripts/make_icon.py`:
+
+```bash
+pip install Pillow
+python scripts/make_icon.py
 ```
 
 ## Releasing (maintainers)
