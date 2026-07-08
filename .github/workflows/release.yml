@@ -72,7 +72,7 @@ jobs:
 
       - name: Attest build provenance
         continue-on-error: true   # never let this block a release
-        uses: actions/attest-build-provenance@v2
+        uses: actions/attest-build-provenance@v4
         with:
           subject-path: |
             release/*.zip
