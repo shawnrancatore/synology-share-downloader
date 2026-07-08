@@ -61,20 +61,29 @@ def render():
                          cx + tray_w // 2, tray_y + tray_h],
                         radius=int(tray_h * 0.45), fill=white)
 
-    return img.resize((256, 256), Image.LANCZOS)
+    return img  # full-resolution 1024px master
 
 
 def main():
     os.makedirs(ASSETS, exist_ok=True)
-    icon = render()
+    master = render()
+    icon = master.resize((256, 256), Image.LANCZOS)
 
     png_path = os.path.join(ASSETS, "icon.png")
     ico_path = os.path.join(ASSETS, "icon.ico")
+    icns_path = os.path.join(ASSETS, "icon.icns")
     icon.save(png_path)
     icon.save(ico_path, sizes=[(16, 16), (32, 32), (48, 48),
                                (64, 64), (128, 128), (256, 256)])
     print("wrote", png_path)
     print("wrote", ico_path)
+
+    # macOS .icns (from the 1024 master so Retina sizes are crisp)
+    try:
+        master.save(icns_path, format="ICNS")
+        print("wrote", icns_path)
+    except Exception as e:  # Pillow ICNS support varies
+        print("skipped icon.icns (%s)" % e)
 
     # embed a 64px PNG (base64) for the Tk window icon — no data files needed
     buf = io.BytesIO()

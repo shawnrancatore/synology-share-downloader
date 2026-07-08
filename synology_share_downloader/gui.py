@@ -131,7 +131,7 @@ class App:
         logf = ttk.Frame(self.root)
         logf.pack(fill="both", padx=6, pady=(0, 6))
         self.log = tk.Text(logf, height=7, wrap="word", state="disabled",
-                           bg="#111", fg="#ddd", font=("Consolas", 9))
+                           bg="#111", fg="#ddd", font="TkFixedFont")
         lsb = ttk.Scrollbar(logf, orient="vertical", command=self.log.yview)
         self.log.configure(yscrollcommand=lsb.set)
         self.log.pack(side="left", fill="both", expand=True)
@@ -503,12 +503,22 @@ def _set_window_icon(root):
         pass
 
 
+def _use_best_theme():
+    # Prefer the native look on each OS; fall back gracefully.
+    style = ttk.Style()
+    available = style.theme_names()
+    for theme in ("vista", "aqua", "clam", "default"):
+        if theme in available:
+            try:
+                style.theme_use(theme)
+                return
+            except tk.TclError:
+                continue
+
+
 def main():
     root = tk.Tk()
-    try:
-        ttk.Style().theme_use("vista")  # nicer on Windows
-    except tk.TclError:
-        pass
+    _use_best_theme()
     _set_window_icon(root)
     App(root)
     root.mainloop()

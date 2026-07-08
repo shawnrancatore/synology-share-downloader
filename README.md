@@ -5,7 +5,7 @@
 [![Release](https://img.shields.io/github/v/release/shawnrancatore/synology-share-downloader?sort=semver)](https://github.com/shawnrancatore/synology-share-downloader/releases)
 [![CI](https://github.com/shawnrancatore/synology-share-downloader/actions/workflows/ci.yml/badge.svg)](https://github.com/shawnrancatore/synology-share-downloader/actions/workflows/ci.yml)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
-[![Windows](https://img.shields.io/badge/platform-Windows-0078D6)](https://github.com/shawnrancatore/synology-share-downloader/releases)
+[![Platforms](https://img.shields.io/badge/platforms-Windows%20%7C%20macOS%20%7C%20Linux-0078D6)](https://github.com/shawnrancatore/synology-share-downloader/releases)
 
 <img width="1291" height="1038" alt="image" src="https://github.com/user-attachments/assets/0d5b2b76-5f66-4584-9c84-0c6b26488825" />
 
@@ -19,7 +19,8 @@ folder and downloads the files individually, keeping the folder structure **and
 the original file dates**, and it can pick up right where it left off.
 
 No Synology account required — just the public share link and its password.
-Nothing to install for the person running it: it's a single portable `.exe`.
+Nothing to install for the person running it — it's a single portable app for
+**Windows, macOS, and Linux**.
 
 > Works with the `http://gofile.me/XXXXX/YYYYYYYYY` style links (Synology
 > QuickConnect shared folders).
@@ -39,22 +40,33 @@ Nothing to install for the person running it: it's a single portable `.exe`.
   folders are recreated too.
 - 🌲 **Keeps the folder structure** under a destination you choose.
 - 📊 **Live progress** — per-file and overall, with speed and ETA.
-- 📦 **Portable** — a single `.exe`, no installer, no Python needed to run it.
+- 📦 **Portable** — a single app for **Windows, macOS, and Linux**, no installer,
+  no Python needed to run it.
 
 ## Download & run (for end users)
 
-1. Grab the latest **`SynologyShareDownloader-vX.Y.Z-win64.zip`** from the
-   [**Releases**](https://github.com/shawnrancatore/synology-share-downloader/releases)
-   page and unzip it (or download the bare `.exe`).
-2. Double-click **`SynologyShareDownloader.exe`**.
-3. Paste the share link + password → **Connect**, pick folders/files, choose a
-   destination, and click **Download selected**.
+Grab the build for your OS from the
+[**Releases**](https://github.com/shawnrancatore/synology-share-downloader/releases)
+page:
+
+| OS | Download | Run |
+|----|----------|-----|
+| **Windows** | `…-win64.zip` (or the bare `.exe`) | Unzip, double-click `SynologyShareDownloader.exe` |
+| **macOS** | `…-macos-arm64.zip` | Unzip, drag `SynologyShareDownloader.app` to Applications, open it |
+| **Linux** | `…-linux-x86_64.tar.gz` | `tar xzf …tar.gz` then `./SynologyShareDownloader` |
+
+Then paste the share link + password → **Connect**, pick folders/files, choose a
+destination, and click **Download selected**.
 
 📖 **Full step-by-step guide:** [docs/USAGE.md](docs/USAGE.md)
 
-> Windows SmartScreen may warn about an unrecognized app because the `.exe`
-> isn't code-signed. Choose **More info → Run anyway**, or build it yourself
-> (below).
+> **First-run security prompts** (the app isn't code-signed):
+> - **Windows:** SmartScreen → **More info → Run anyway**.
+> - **macOS:** right-click the app → **Open** → **Open** (or *System Settings →
+>   Privacy & Security → Open Anyway*).
+> - **Linux:** make it executable if needed — `chmod +x SynologyShareDownloader`.
+>
+> Or build it yourself (below).
 
 ## How it works
 
@@ -71,16 +83,16 @@ See [`synology_share_downloader/client.py`](synology_share_downloader/client.py)
 
 ## Build from source
 
-Requirements: **Python 3.9+** on Windows.
+Requirements: **Python 3.9+** (Windows, macOS, or Linux). PyInstaller builds for
+the OS it runs on, so build on each platform you want to ship.
 
 ```bash
 pip install -r requirements.txt pyinstaller
 python build.py --zip
 ```
 
-Output lands in `dist/`:
-- `SynologyShareDownloader.exe` — the portable app
-- `SynologyShareDownloader-v<version>-win64.zip` — the portable release bundle
+Output lands in `dist/` — the portable app plus an archive for the current OS
+(`…-win64.zip`, `…-macos-*.zip` containing the `.app`, or `…-linux-*.tar.gz`).
 
 To run from source without building:
 

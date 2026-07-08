@@ -7,5 +7,7 @@
 # Treat binaries as binary.
 *.png binary
 *.ico binary
+*.icns binary
 *.zip binary
+*.tar.gz binary
 *.exe binary

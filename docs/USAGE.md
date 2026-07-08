@@ -6,25 +6,34 @@ A friendly, step-by-step guide for downloading files from a Synology share link.
 
 - The **share link** — it looks like `http://gofile.me/75lxK/7vqFT49uA`.
 - The **password** for that share (if it's password-protected).
-- A Windows PC.
+- A Windows, macOS, or Linux computer.
 
 You do **not** need a Synology account or any login of your own.
 
 ## 1. Get the app
 
-Download the latest release from the project's **Releases** page:
+Download the build for your operating system from the project's **Releases**
+page, then open it:
 
-- `SynologyShareDownloader-vX.Y.Z-win64.zip` — unzip it anywhere (Desktop is
-  fine), **or**
-- `SynologyShareDownloader.exe` — the app on its own.
+- **Windows** — `…-win64.zip` (unzip, then double-click
+  `SynologyShareDownloader.exe`), or grab the bare `.exe`.
+- **macOS** — `…-macos-arm64.zip` (unzip, then open
+  `SynologyShareDownloader.app`; drag it to Applications if you like).
+- **Linux** — `…-linux-x86_64.tar.gz` (`tar xzf` it, then run
+  `./SynologyShareDownloader`).
 
-Then double-click **`SynologyShareDownloader.exe`**. Nothing installs; it just
-opens.
+Nothing installs — it just opens.
 
-> **SmartScreen warning?** Because the app isn't code-signed, Windows may show
-> *"Windows protected your PC."* Click **More info → Run anyway**. (If you'd
-> rather not trust a prebuilt file, you can build it yourself from source — see
-> the README.)
+> **First-run security prompt?** The app isn't code-signed, so your OS may warn
+> you the first time:
+> - **Windows:** *"Windows protected your PC"* → **More info → Run anyway**.
+> - **macOS:** right-click the app → **Open** → **Open** (only needed once), or
+>   allow it under *System Settings → Privacy & Security*.
+> - **Linux:** if it won't run, mark it executable:
+>   `chmod +x SynologyShareDownloader`.
+>
+> If you'd rather not trust a prebuilt file, you can build it yourself — see the
+> README.
 
 ## 2. Connect to the share
 
@@ -112,8 +121,8 @@ No. It's used only to log in to the share for the current session and is not
 saved to disk.
 
 **Can I use it on macOS or Linux?**
-The code is cross-platform Python, but official release builds are Windows-only
-for now. You can run it from source (`python app.py`) on other systems.
+Yes — there are official builds for Windows, macOS, and Linux on the Releases
+page. You can also run it from source (`python app.py`) on any of them.
 
 ## About
 

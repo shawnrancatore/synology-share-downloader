@@ -4,6 +4,18 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.0] — 2026-07-08
+
+### Added
+- **macOS and Linux support.** Official portable release builds are now produced
+  for Windows (`.exe`/zip), macOS (`.app` in a zip), and Linux (`tar.gz`), built
+  in a 3-OS GitHub Actions matrix. A macOS `.icns` icon was added.
+
+### Changed
+- The GUI now picks the native `ttk` theme per platform and uses a portable
+  monospace font, so it looks at home on all three systems.
+- CI now runs on Windows, macOS, and Linux.
+
 ## [1.1.0] — 2026-07-07
 
 ### Added
@@ -52,6 +64,7 @@ Initial public release.
 - Single portable Windows `.exe` build via PyInstaller, plus a portable release
   `.zip`, produced automatically on tagged releases.
 
+[1.2.0]: https://github.com/shawnrancatore/synology-share-downloader/releases/tag/v1.2.0
 [1.1.0]: https://github.com/shawnrancatore/synology-share-downloader/releases/tag/v1.1.0
 [1.0.2]: https://github.com/shawnrancatore/synology-share-downloader/releases/tag/v1.0.2
 [1.0.1]: https://github.com/shawnrancatore/synology-share-downloader/releases/tag/v1.0.1

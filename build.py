@@ -21,9 +21,11 @@ Usage:
 """
 
 import os
+import platform
 import shutil
 import subprocess
 import sys
+import tarfile
 import zipfile
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
@@ -67,20 +69,35 @@ VSVersionInfo(
         fh.write(content)
 
 
-def build_exe():
-    version_file = os.path.join(ROOT, "version_info.txt")
-    write_version_info(version_file)
+def _platform_tag():
+    """Short label for the current OS/arch, e.g. win64, macos-arm64, linux-x86_64."""
+    if sys.platform.startswith("win"):
+        return "win64"
+    arch = platform.machine().lower()
+    if sys.platform == "darwin":
+        return "macos-" + ("arm64" if arch in ("arm64", "aarch64") else "x64")
+    return "linux-" + (arch or "x86_64")
 
+
+def build_exe():
     cmd = [
         sys.executable, "-m", "PyInstaller",
         "--noconfirm", "--clean", "--onefile", "--windowed",
         "--name", EXE_NAME,
         "--paths", ROOT,
     ]
-    if os.name == "nt":
+    if sys.platform.startswith("win"):
+        version_file = os.path.join(ROOT, "version_info.txt")
+        write_version_info(version_file)
         cmd += ["--version-file", version_file]
-    icon = os.path.join(ROOT, "assets", "icon.ico")
-    if os.path.exists(icon):
+        icon = os.path.join(ROOT, "assets", "icon.ico")
+    elif sys.platform == "darwin":
+        cmd += ["--osx-bundle-identifier", "com.dynamofoundry.synologysharedownloader"]
+        icon = os.path.join(ROOT, "assets", "icon.icns")
+    else:  # linux: PyInstaller can't embed an icon into an ELF binary
+        icon = None
+
+    if icon and os.path.exists(icon):
         cmd += ["--icon", icon]
     cmd.append(os.path.join(ROOT, "app.py"))
 
@@ -88,20 +105,45 @@ def build_exe():
     subprocess.check_call(cmd, cwd=ROOT)
 
 
-def make_zip():
-    exe = os.path.join(DIST, EXE_NAME + (".exe" if os.name == "nt" else ""))
+DOC_EXTRAS = ["README.md", "LICENSE", "NOTICE", os.path.join("docs", "USAGE.md")]
+
+
+def make_archive():
+    tag = _platform_tag()
+    base = "%s-v%s-%s" % (EXE_NAME, __version__, tag)
+
+    if sys.platform == "darwin":
+        # Ship the .app bundle; use `ditto` so exec bits / symlinks survive.
+        app = os.path.join(DIST, EXE_NAME + ".app")
+        if not os.path.isdir(app):
+            raise SystemExit("App bundle not found: %s" % app)
+        out = os.path.join(DIST, base + ".zip")
+        subprocess.check_call(["ditto", "-c", "-k", "--sequesterRsrc",
+                               "--keepParent", app, out])
+        print("Portable archive:", out)
+        return
+
+    exe = os.path.join(DIST, EXE_NAME + (".exe" if sys.platform.startswith("win") else ""))
     if not os.path.exists(exe):
         raise SystemExit("Executable not found: %s" % exe)
-    plat = "win64" if os.name == "nt" else sys.platform
-    zip_path = os.path.join(DIST, "%s-v%s-%s.zip" % (EXE_NAME, __version__, plat))
-    extras = ["README.md", "LICENSE", "NOTICE", os.path.join("docs", "USAGE.md")]
-    with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as z:
-        z.write(exe, os.path.basename(exe))
-        for rel in extras:
-            p = os.path.join(ROOT, rel)
-            if os.path.exists(p):
-                z.write(p, os.path.basename(rel))
-    print("Portable zip:", zip_path)
+
+    if sys.platform.startswith("win"):
+        out = os.path.join(DIST, base + ".zip")
+        with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as z:
+            z.write(exe, os.path.basename(exe))
+            for rel in DOC_EXTRAS:
+                p = os.path.join(ROOT, rel)
+                if os.path.exists(p):
+                    z.write(p, os.path.basename(rel))
+    else:  # linux: tar.gz preserves the executable bit
+        out = os.path.join(DIST, base + ".tar.gz")
+        with tarfile.open(out, "w:gz") as t:
+            t.add(exe, arcname=EXE_NAME)
+            for rel in DOC_EXTRAS:
+                p = os.path.join(ROOT, rel)
+                if os.path.exists(p):
+                    t.add(p, arcname=os.path.basename(rel))
+    print("Portable archive:", out)
 
 
 def main():
@@ -109,7 +151,7 @@ def main():
         shutil.rmtree(DIST, ignore_errors=True)
     build_exe()
     if "--zip" in sys.argv:
-        make_zip()
+        make_archive()
     print("\nDone. Output in:", DIST)
 
 
