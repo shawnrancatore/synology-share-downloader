@@ -120,6 +120,13 @@ share is up.
 No. It's used only to log in to the share for the current session and is not
 saved to disk.
 
+**Why does my computer warn me the app is unrecognized?**
+Because the app isn't code-signed (that needs a paid certificate). The warning
+is expected — see the first-run steps above to proceed. If you'd like to be
+extra careful, each release ships a `SHA256SUMS.txt` you can check against your
+download, and the builds carry a verifiable build-provenance attestation (see
+the README's "Is it safe?" section).
+
 **Can I use it on macOS or Linux?**
 Yes — there are official builds for Windows, macOS, and Linux on the Releases
 page. You can also run it from source (`python app.py`) on any of them.

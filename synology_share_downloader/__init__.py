@@ -14,7 +14,7 @@
 """Synology Share Downloader -- reliable, resumable downloads from Synology
 folder-share links (the gofile.me / QuickConnect kind), file by file."""
 
-__version__ = "1.2.0"
+__version__ = "1.2.1"
 
 APP_NAME = "Synology Share Downloader"
 COMPANY = "Dynamo Foundry LLC"

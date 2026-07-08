@@ -56,18 +56,35 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      id-token: write        # for build-provenance attestation
+      attestations: write
     steps:
       - name: Download all build artifacts
         uses: actions/download-artifact@v7
         with:
           path: artifacts
 
+      - name: Collect archives and generate checksums
+        run: |
+          mkdir -p release
+          find artifacts -type f \( -name '*.zip' -o -name '*.tar.gz' \) -exec cp {} release/ \;
+          ( cd release && sha256sum * > SHA256SUMS.txt && cat SHA256SUMS.txt )
+
+      - name: Attest build provenance
+        continue-on-error: true   # never let this block a release
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: |
+            release/*.zip
+            release/*.tar.gz
+
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v3
         with:
           files: |
-            artifacts/**/*.zip
-            artifacts/**/*.tar.gz
+            release/*.zip
+            release/*.tar.gz
+            release/SHA256SUMS.txt
           generate_release_notes: true
           draft: false
           prerelease: false

@@ -68,6 +68,34 @@ destination, and click **Download selected**.
 >
 > Or build it yourself (below).
 
+## Is it safe? Verifying your download
+
+The apps are built entirely in public GitHub Actions from the source in this
+repo, so you can see exactly what goes into them. They are **not code-signed**
+(that requires a paid certificate), which is why Windows SmartScreen and macOS
+Gatekeeper warn on first run — see the notes above to proceed.
+
+Every release includes trust signals you can check:
+
+- **`SHA256SUMS.txt`** — verify the file wasn't tampered with. On Windows:
+  ```powershell
+  Get-FileHash .\SynologyShareDownloader.exe -Algorithm SHA256
+  ```
+  and compare to the matching line in `SHA256SUMS.txt`.
+- **Build-provenance attestation** — cryptographic proof each binary was built
+  by this repo's release workflow (not by someone else). Verify with the GitHub
+  CLI:
+  ```bash
+  gh attestation verify SynologyShareDownloader.exe \
+    --repo shawnrancatore/synology-share-downloader
+  ```
+
+Want the first-run prompt gone entirely? That needs Authenticode code signing
+(e.g. an OV/EV certificate or [Azure Trusted Signing][ats]). The release workflow
+is structured so a signing step can be dropped in — contributions welcome.
+
+[ats]: https://learn.microsoft.com/azure/trusted-signing/
+
 ## How it works
 
 The `gofile.me` link is a QuickConnect redirector. The app:
