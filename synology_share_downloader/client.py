@@ -26,17 +26,26 @@ Protocol
      -> the share's virtual root folder name (Private.filename, e.g. "mounted").
   4. List folders with SYNO.FolderSharing.List (folder_path="/<root>").
   5. Download files with SYNO.FolderSharing.Download (supports Range -> resume).
+
+TLS
+---
+The coordinator and the NAS's QuickConnect ("smartdns") names are reached
+with verified HTTPS. Its raw external IP, DDNS name and LAN IP addresses
+typically carry the NAS's self-signed certificate, so they are tried without
+verification, as a fallback. Connecting that way logs "certificate not
+verified for <host>", and login() asks confirm_unverified(host), when given,
+before the share password is sent.
 """
 
 import json
 import os
+import re
 import time
 import urllib.parse
+import warnings
 
 import requests
 import urllib3
-
-urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 COORDINATORS = [
     "https://global.quickconnect.to/Serv.php",
@@ -63,6 +72,19 @@ _ERR = {
 
 def _api_error(code):
     return _ERR.get(code, "Synology API error code %s." % code)
+
+
+def _quiet_insecure_warning(host):
+    """Silence urllib3's InsecureRequestWarning for this one host only.
+
+    The client reports an unverified connection itself, in its log, so
+    urllib3's warning for that host would repeat it. Warnings about every
+    other host are left as they are.
+    """
+    warnings.filterwarnings(
+        "ignore",
+        message="Unverified HTTPS request is being made to host '%s'" % re.escape(host),
+        category=urllib3.exceptions.InsecureRequestWarning)
 
 
 def _set_windows_ctime(path, ctime_epoch):
@@ -140,16 +162,28 @@ def parse_share_url(url):
 
 
 class SynoShareClient:
-    def __init__(self, share_url, password, log=None, verify_tls=True):
+    """One share: resolve() it, login(), then list and download.
+
+    log(msg) receives progress messages. confirm_unverified(host) -> bool is
+    called by login() before the share password is sent over a connection
+    whose certificate was not verified; returning False stops the login.
+    verify_tls is only the starting value: resolve() sets self.verify for the
+    address it connects to.
+    """
+
+    def __init__(self, share_url, password, log=None, verify_tls=True,
+                 confirm_unverified=None):
         self.share_url = share_url
         self.password = password
         self._log = log or (lambda *_: None)
+        self._confirm_unverified = confirm_unverified
         self.qc_id, self.link_id, self.is_gofile = parse_share_url(share_url)
         if not self.link_id:
             raise ShareError("Could not read the share id from the link.")
         self.session = requests.Session()
         self.session.headers["User-Agent"] = "SynologyShareDownloader/1.0"
         self.base = None           # e.g. https://host:53748
+        self.host = None           # the host part of base
         self.verify = verify_tls   # per-connection TLS verification
         self.root_path = None      # e.g. /mounted
         self.is_folder = True
@@ -208,10 +242,16 @@ class SynoShareClient:
         self._log("Resolved server. Trying %d address(es)..." % len(candidates))
         for host, port, verify, label in candidates:
             base = "https://%s:%s" % (host, port)
+            if not verify:
+                _quiet_insecure_warning(host)  # the log line below says it instead
             if self._probe(base, verify):
                 self.base = base
+                self.host = host
                 self.verify = verify
-                self._log("Connected via %s (%s:%s)" % (label, host, port))
+                self._log("Connected via %s (%s:%s)." % (label, host, port))
+                if not verify:
+                    self._log("Warning: certificate not verified for %s. "
+                              "The app cannot confirm this is your NAS." % host)
                 return
         raise ShareError(
             "Found the server but couldn't reach it from this network.\n"
@@ -219,6 +259,10 @@ class SynoShareClient:
         )
 
     def _candidates(self, info):
+        """(host, port, verify, label) for each address to try, in order.
+
+        Only QuickConnect's own names are verified; the rest are a fallback.
+        """
         srv = info.get("server", {})
         svc = info.get("service", {})
         sdns = info.get("smartdns", {})
@@ -258,6 +302,10 @@ class SynoShareClient:
 
     # ---- step 2: login ---------------------------------------------------
     def login(self):
+        if not self.verify and self._confirm_unverified is not None \
+                and not self._confirm_unverified(self.host):
+            raise ShareError("Not connected. The share password was not sent, because "
+                             "the certificate for %s could not be verified." % self.host)
         r = self.session.post(self._entry_url(), data={
             "api": "SYNO.Core.Sharing.Login", "version": 1, "method": "login",
             "sharing_id": self.link_id, "password": self.password,

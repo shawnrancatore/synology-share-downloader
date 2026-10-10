@@ -15,6 +15,15 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   a NUL character, if it is listed outside the folder being downloaded, or if
   it would resolve outside the destination through an existing link. A skipped
   folder is not listed at all.
+- **Unverified connections are visible, and the app asks first.** The
+  QuickConnect lookup and the NAS's QuickConnect name still use verified HTTPS.
+  The fallback to the NAS's public IP, DDNS name and LAN addresses, which skips
+  certificate checks, now logs `certificate not verified for <host>`, and the
+  app asks before it sends the share password over such a connection (once per
+  address, per run). `SynoShareClient` takes a `confirm_unverified(host)`
+  callback for the same purpose.
+- urllib3's `InsecureRequestWarning` is no longer silenced for the whole
+  process; it is silenced only for the hosts the app reports itself.
 
 ## [1.2.1] — 2026-07-08
 

@@ -42,8 +42,7 @@ class App:
         self.worker = None
         self.stop_flag = threading.Event()
         self.downloading = False
-        self.confirm_event = threading.Event()
-        self.confirm_result = False
+        self.unverified_ok = set()  # hosts the user agreed to, for this run only
 
         self._build_menu()
         self._build_ui()
@@ -151,6 +150,23 @@ class App:
         self.log.see("end")
         self.log.configure(state="disabled")
 
+    def _ask(self, kind, payload):
+        """From a worker thread: ask a yes/no question on the Tk thread, wait for it."""
+        answer = {"ok": False}
+        done = threading.Event()
+        self.q.put((kind, (payload, answer, done)))
+        done.wait()
+        return answer["ok"]
+
+    def _confirm_unverified(self, host):
+        """Worker thread: before the password goes out unverified, ask once per host."""
+        if host in self.unverified_ok:
+            return True
+        if self._ask("ask_unverified", host):
+            self.unverified_ok.add(host)
+            return True
+        return False
+
     # ----------------------------------------------------------- connect
     def on_connect(self):
         if self.downloading:
@@ -170,7 +186,8 @@ class App:
 
         def work():
             try:
-                client = SynoShareClient(url, pw, log=self.log_msg)
+                client = SynoShareClient(url, pw, log=self.log_msg,
+                                         confirm_unverified=self._confirm_unverified)
                 client.resolve()
                 client.login()
                 entries = client.list_folder(client.root_path)
@@ -305,11 +322,7 @@ class App:
 
             # 2) size confirmation (for "Download entire share")
             if confirm:
-                self.confirm_result = False
-                self.confirm_event.clear()
-                self.q.put(("confirm", (total_bytes, len(jobs))))
-                self.confirm_event.wait()
-                if not self.confirm_result:
+                if not self._ask("ask_size", (total_bytes, len(jobs))):
                     self.q.put(("dl_done", "Cancelled — nothing downloaded."))
                     return
 
@@ -417,19 +430,29 @@ class App:
         except Exception as e:
             self.q.put(("dl_done", "Stopped: %s" % e))
 
-    def _ask_confirm(self, total_bytes, nfiles):
+    def _ask_size(self, total_bytes, nfiles):
         warn = ""
         if total_bytes > 5 * 1024 ** 3:
             warn = ("\n\n⚠  This is a large download. It may include big system "
                     "files (e.g. pagefile.sys, hiberfil.sys). Make sure you have "
                     "enough free disk space, and consider selecting only the "
                     "folders you need instead.")
-        ok = messagebox.askyesno(
+        return bool(messagebox.askyesno(
             APP_NAME,
             "Download the entire share to:\n%s\n\n%d files, %s total.%s\n\nContinue?"
-            % (self.dest_var.get(), nfiles, human(total_bytes), warn))
-        self.confirm_result = bool(ok)
-        self.confirm_event.set()
+            % (self.dest_var.get(), nfiles, human(total_bytes), warn)))
+
+    def _ask_unverified(self, host):
+        return bool(messagebox.askyesno(
+            APP_NAME,
+            "The NAS answered at %s, but its certificate was not verified.\n\n"
+            "An IP address, DDNS name or LAN address typically has the NAS's own "
+            "self-signed certificate, which this app cannot check. So the app cannot "
+            "confirm it is talking to your NAS and not to someone in between.\n\n"
+            "Send the share password over this connection?\n\n"
+            "If you choose Yes, you won't be asked again for %s until you restart the app."
+            % (host, host),
+            icon="warning", default="no"))
 
     def on_cancel(self):
         if self.downloading:
@@ -459,8 +482,15 @@ class App:
                     self.overall["value"] = payload["overall"]
                     self.cur["value"] = payload["cur"]
                     self.prog_lbl.configure(text=payload["text"])
-                elif kind == "confirm":
-                    self._ask_confirm(*payload)
+                elif kind in ("ask_size", "ask_unverified"):
+                    question, answer, done = payload
+                    try:
+                        if kind == "ask_size":
+                            answer["ok"] = self._ask_size(*question)
+                        else:
+                            answer["ok"] = self._ask_unverified(question)
+                    finally:
+                        done.set()
                 elif kind == "dl_done":
                     self.downloading = False
                     for b in (self.download_btn, self.download_all_btn, self.connect_btn):

@@ -109,6 +109,16 @@ The `gofile.me` link is a QuickConnect redirector. The app:
 See [`synology_share_downloader/client.py`](synology_share_downloader/client.py)
 — it's usable as a standalone library for scripting, too.
 
+### Certificates
+
+The QuickConnect lookup and the NAS's QuickConnect name use verified HTTPS. If
+that name can't be reached, the app falls back to the NAS's public IP, DDNS
+name and LAN addresses without verifying their certificate, because they
+typically carry the NAS's self-signed one. It logs
+`certificate not verified for <host>` and asks before it sends the share
+password over that connection. See
+[docs/USAGE.md](docs/USAGE.md#if-the-app-asks-about-a-certificate).
+
 ## Build from source
 
 Requirements: **Python 3.9+** (Windows, macOS, or Linux). PyInstaller builds for

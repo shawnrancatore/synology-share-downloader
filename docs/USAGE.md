@@ -46,6 +46,32 @@ Nothing installs — it just opens.
 After a moment the shared folder appears in the list. If the password is wrong
 or the NAS can't be reached, you'll see a clear message explaining why.
 
+### If the app asks about a certificate
+
+The app first looks up the share through Synology's QuickConnect service and
+tries the NAS's QuickConnect name. Both use HTTPS with a verified certificate.
+
+If that name can't be reached from your network, the app tries the NAS's other
+addresses: its public IP address, its DDNS name, and its addresses on the local
+network. Those typically carry the NAS's own self-signed certificate, which the
+app cannot check, so it connects to them without verifying the certificate.
+When it does, the log shows:
+
+```text
+Warning: certificate not verified for <address>. The app cannot confirm this is your NAS.
+```
+
+Before it sends the share password over such a connection, the app asks
+**Send the share password over this connection?**
+
+- **Yes** logs in and carries on. The app doesn't ask again for that address
+  until you restart it.
+- **No** stops. The password is not sent.
+
+An unverified connection doesn't prove who is at the other end. Someone between
+you and the NAS could read the password and the files. Choose **Yes** when you
+expect the NAS at that address, such as when you're on the NAS's own network.
+
 ## 3. Choose what to download
 
 - Click the **▸ arrows** to open folders and look inside.
