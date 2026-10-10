@@ -51,6 +51,9 @@ def _part_problem(part):
     if part.strip(". ") == "":
         # ".", "..", and spellings Windows trims down to them, such as ".. "
         return "it has a '.' or '..' part"
+    if part[-1] in ". ":
+        # Windows drops these, so "a." and "a" would be the same file there.
+        return "it ends with a dot or a space, which Windows drops"
     stem = part.rstrip(". ").split(".", 1)[0].rstrip(" ").upper()
     if stem in _DEVICES:
         return "it is a Windows device name (such as CON, NUL or COM1)"

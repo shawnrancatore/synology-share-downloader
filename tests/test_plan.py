@@ -49,6 +49,14 @@ HOSTILE_NAMES = [
     "a\x1fb",
     "a\tb",
     "a\nb",
+    # A trailing dot or space: Windows drops it, so "a." would land on "a".
+    "a.",
+    "a ",
+    "a.txt.",
+    "a.txt ",
+    "a. .",
+    "dir./x",
+    "dir /x",
 ]
 
 # DOS device names: on Windows, opening one opens the device, with any
@@ -80,6 +88,8 @@ BENIGN_NAMES = [
     "a.con",
     "nul-x.txt",
     "auxiliary",
+    " leading space",
+    "a .txt",
 ]
 
 
@@ -151,6 +161,9 @@ def test_windows_rules_keep_benign_names_inside(windows_paths, name):
     ("1:x", "':'"),
     ("a?b", "Windows does not allow"),
     ("a\x01b", "control character"),
+    ("a.txt.", "ends with a dot or a space"),
+    ("dir /x", "ends with a dot or a space"),
+    ("..", "'.' or '..'"),
 ])
 @pytest.mark.parametrize("rules", ["host", "windows"])
 def test_the_logged_reason_is_the_real_one(request, name, reason, rules):
