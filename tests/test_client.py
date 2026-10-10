@@ -6,9 +6,11 @@ import time
 import pytest
 import requests
 
+from synology_share_downloader import __version__
 from synology_share_downloader import client as client_module
 from synology_share_downloader.client import (
     ShareError,
+    SynoShareClient,
     apply_file_times,
     parse_share_url,
     redact_share_url,
@@ -80,3 +82,8 @@ def test_download_errors_do_not_log_the_link_id(tmp_path, monkeypatch, fake_nas,
         client.download_file("/share/a.txt", str(tmp_path / "a.txt"), retries=2)
     assert "ExAmPlE123" not in str(err.value)
     assert logs and not any("ExAmPlE123" in m for m in logs)
+
+
+def test_user_agent_carries_the_version():
+    client = SynoShareClient("http://gofile.me/AbCdE/ExAmPlE123", "pw")
+    assert client.session.headers["User-Agent"] == "SynologyShareDownloader/" + __version__

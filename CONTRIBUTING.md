@@ -52,12 +52,13 @@ python app.py            # or:  python -m synology_share_downloader
 synology_share_downloader/
   __init__.py     # version + branding metadata (single source of truth)
   client.py       # the share protocol: resolve, login, list, resumable download
+  plan.py         # where each file goes; keeps every path inside the destination
   gui.py          # the Tkinter application
   about.py        # Help menu + About dialog
   util.py         # small formatting helpers (no GUI/network)
   icon_data.py    # embedded window icon (generated)
 app.py            # launcher / PyInstaller entry point
-build.py          # builds the portable .exe (+ .zip)
+build.py          # builds the portable app (+ its .zip or .tar.gz) for this OS
 scripts/make_icon.py  # regenerates assets/icon.* and icon_data.py (needs Pillow)
 docs/USAGE.md     # end-user documentation
 tests/            # unit tests (no network needed)
@@ -75,8 +76,10 @@ python scripts/make_icon.py
 1. Bump `__version__` in `synology_share_downloader/__init__.py` and update
    `CHANGELOG.md`.
 2. Commit, then tag: `git tag v1.2.3 && git push origin v1.2.3`.
-3. GitHub Actions builds the Windows `.exe`, packages the portable `.zip`, and
-   attaches both to a new GitHub Release automatically.
+3. GitHub Actions builds the Windows, macOS (Apple Silicon) and Linux
+   archives, writes `SHA256SUMS.txt`, tries to attest their build provenance
+   (a failed attestation does not stop the release), and attaches the
+   archives and checksums to a new GitHub Release.
 
 ## Code of Conduct
 

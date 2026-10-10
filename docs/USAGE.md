@@ -16,13 +16,14 @@ Download the build for your operating system from the project's **Releases**
 page, then open it:
 
 - **Windows** — `…-win64.zip` (unzip, then double-click
-  `SynologyShareDownloader.exe`), or grab the bare `.exe`.
-- **macOS** — `…-macos-arm64.zip` (unzip, then open
-  `SynologyShareDownloader.app`; drag it to Applications if you like).
-- **Linux** — `…-linux-x86_64.tar.gz` (`tar xzf` it, then run
+  `SynologyShareDownloader.exe`).
+- **macOS** (Apple Silicon) — `…-macos-arm64.zip` (unzip, then open
+  `SynologyShareDownloader.app`; drag it to Applications if you like). There is
+  no build for Intel Macs; run it from source instead (see the README).
+- **Linux** (x86-64) — `…-linux-x86_64.tar.gz` (`tar xzf` it, then run
   `./SynologyShareDownloader`).
 
-Nothing installs — it just opens.
+There is no installer: the app runs from where you put it.
 
 > **First-run security prompt?** The app isn't code-signed, so your OS may warn
 > you the first time:
@@ -36,8 +37,6 @@ Nothing installs — it just opens.
 > README.
 
 ## 2. Connect to the share
-
-![Connect](images/step-connect.png)
 
 1. Paste the **share link** into the *Share link* box.
 2. Type the **password**.
@@ -110,18 +109,21 @@ Click **Download selected**. You'll see:
 - a **current file** progress bar,
 - the file name, counts, transfer speed, and estimated time remaining.
 
-When it finishes, your files are in the destination folder — with their
-**original dates** preserved on both **files and folders** (and empty folders
-recreated), so everything sorts and looks the way you expect.
+When it finishes, your files are in the destination folder, and empty folders
+are recreated. Files and folders keep their **original modified dates**, so
+everything sorts the way you expect. On Windows they keep their original
+**creation dates** too; the app sets creation dates on Windows only.
 
 ## Resuming and re-running
 
 Downloads are **resumable**:
 
-- If the network drops or you close the app mid-download, just open it again,
+- If the network drops or you close the app mid-download, open it again,
   connect, select the same folder and the same destination, and click
   **Download selected** again.
-- Files that already finished are **skipped instantly**.
+- Files that already finished are **skipped**. A file counts as finished when
+  its size on disk matches the size the share lists. The app compares sizes
+  only, not contents.
 - A file that was only half-downloaded **continues** from where it stopped
   (it's stored as a `.part` file until complete).
 
@@ -131,16 +133,28 @@ resuming later.
 ## Frequently asked questions
 
 **Do I need the NAS owner to do anything?**
-No — as long as the share link works in a web browser, it works here.
+No, as long as the app can reach the NAS from your network (see "It says it
+can't reach the server" below).
 
 **Where did my files go?**
-Into the *Save to* folder you chose, inside a subfolder matching the shared
-folder's name and structure.
+Into the *Save to* folder you chose. A folder you picked arrives as a folder of
+the same name, with everything inside it in the same structure. A file you
+picked on its own lands directly in *Save to*. **Download entire share…** puts
+everything in a folder named after the share's top folder.
+
+**The log says `Skipped …`.**
+The share listed a name that would put a file outside your *Save to* folder,
+such as one with a `..` part, a drive letter or a backslash in it. The app
+doesn't download it, and if it's a folder, doesn't look inside it. The rest of
+the download carries on. A link inside *Save to* that points to a folder
+somewhere else is treated the same way.
 
 **It says it can't reach the server.**
-The NAS must be online and remotely reachable (the same thing that makes the
-web link open in a browser). Try opening the link in a browser to confirm the
-share is up.
+The app connects to the NAS directly, at the addresses QuickConnect reports for
+it: its QuickConnect name, public IP address, DDNS name and local addresses. It
+doesn't use QuickConnect's relay service. So the NAS must be online and accept
+connections on one of those addresses from your network. Away from the NAS's
+own network, that needs a port on the NAS open to the internet.
 
 **Is my password stored anywhere?**
 No. It's used only to log in to the share for the current session and is not
@@ -156,13 +170,16 @@ the password into an issue: issues are public.
 **Why does my computer warn me the app is unrecognized?**
 Because the app isn't code-signed (that needs a paid certificate). The warning
 is expected — see the first-run steps above to proceed. If you'd like to be
-extra careful, each release ships a `SHA256SUMS.txt` you can check against your
-download, and the builds carry a verifiable build-provenance attestation (see
-the README's "Is it safe?" section).
+extra careful, releases from v1.2.1 on ship a `SHA256SUMS.txt` you can check
+the downloaded archive against. The release workflow also tries to record a
+build-provenance attestation for each archive, but a failed attempt doesn't
+stop a release, so check that one exists (see the README's "Is it safe?"
+section).
 
 **Can I use it on macOS or Linux?**
-Yes — there are official builds for Windows, macOS, and Linux on the Releases
-page. You can also run it from source (`python app.py`) on any of them.
+Yes — the Releases page has builds for Windows, macOS on Apple Silicon, and
+Linux on x86-64. You can also run it from source (`python app.py`) on any of
+the three, including an Intel Mac.
 
 ## About
 

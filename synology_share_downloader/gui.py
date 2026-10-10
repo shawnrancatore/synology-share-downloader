@@ -219,7 +219,8 @@ class App:
             item = self.tree.insert(parent_item, "end", text=label,
                                     values=("" if e["isdir"] else human(e["size"]),))
             self.nodes[item] = {"path": e["path"], "isdir": e["isdir"],
-                                "size": e["size"], "loaded": not e["isdir"]}
+                                "size": e["size"], "loaded": not e["isdir"],
+                                "mtime": e.get("mtime"), "crtime": e.get("crtime")}
             if e["isdir"]:
                 self.tree.insert(item, "end", text="  loading…")  # placeholder arrow
 

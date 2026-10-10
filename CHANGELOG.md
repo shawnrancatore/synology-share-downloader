@@ -30,9 +30,18 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - The bug-report form warns not to paste share links or passwords, and says
   what the log does show.
 
+### Fixed
+- A file or folder picked directly in the tree now keeps its original dates.
+  Before, only the items inside a picked folder did.
+- The User-Agent carries the app's version instead of `1.0`.
+
 ### Changed
 - Examples and tests use an obviously fake share link,
   `http://gofile.me/AbCdE/ExAmPlE123`.
+- Package classifiers say "OS Independent" and "4 - Beta".
+- The docs match the builds: zip and tar.gz archives (no bare `.exe`), macOS
+  on Apple Silicon only, creation dates set on Windows only, completeness
+  checked by size only, and direct connections only (no QuickConnect relay).
 
 ## [1.2.1] — 2026-07-08
 

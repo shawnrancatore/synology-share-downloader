@@ -12,12 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """
-Build a single, portable Windows .exe with PyInstaller, and (optionally) a
-portable release .zip.
+Build the portable app for the current OS with PyInstaller: a Windows .exe,
+a macOS .app or a Linux binary. Optionally also build its release archive.
 
 Usage:
-    python build.py            # build dist/SynologyShareDownloader.exe
-    python build.py --zip      # also produce dist/<name>-v<ver>-win64.zip
+    python build.py            # build the app into dist/
+    python build.py --zip      # also produce the archive in dist/:
+                               #   <name>-v<ver>-win64.zip, -macos-<arch>.zip
+                               #   or -linux-<arch>.tar.gz
 """
 
 import os

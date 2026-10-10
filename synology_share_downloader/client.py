@@ -47,6 +47,8 @@ import warnings
 import requests
 import urllib3
 
+from . import __version__
+
 COORDINATORS = [
     "https://global.quickconnect.to/Serv.php",
     "https://global.quickconnect.cn/Serv.php",
@@ -202,7 +204,7 @@ class SynoShareClient:
         if not self.link_id:
             raise ShareError("Could not read the share id from the link.")
         self.session = requests.Session()
-        self.session.headers["User-Agent"] = "SynologyShareDownloader/1.0"
+        self.session.headers["User-Agent"] = "SynologyShareDownloader/%s" % __version__
         self.base = None           # e.g. https://host:53748
         self.host = None           # the host part of base
         self.verify = verify_tls   # per-connection TLS verification
