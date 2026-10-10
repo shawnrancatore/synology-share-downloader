@@ -70,7 +70,35 @@ def test_download_worker_does_not_restamp_through_a_link(tmp_path, fake_nas, con
     assert other.read_bytes() == b"keep"
     assert os.stat(str(other)).st_mtime == OLD
     assert os.path.islink(str(dest / "share" / "a.txt"))
-    assert any(m.startswith("Skipped ") and "link" in m for m in _logged(app))
+    logged = _logged(app)
+    assert any(m.startswith("Skipped (symbolic link) ") for m in logged)
+    assert logged[-1].startswith("Done. 0 file(s) downloaded; 1 link(s) skipped")
+
+
+def test_download_worker_counts_a_hard_linked_part_file_as_skipped(tmp_path, fake_nas, connect):
+    dest, outside = tmp_path / "dest", tmp_path / "outside"
+    (dest / "share").mkdir(parents=True)
+    outside.mkdir()
+    target = outside / "target.txt"
+    target.write_bytes(b"keep")
+    os.utime(str(target), (OLD, OLD))
+    try:
+        os.link(str(target), str(dest / "share" / "a.txt.part"))
+    except (OSError, NotImplementedError, AttributeError):
+        pytest.skip("this system does not let us create a hard link")
+    nas = fake_nas({"/share": [("a.txt", "/share/a.txt", False), ("b.txt", "/share/b.txt", False)]},
+                   {"/share/a.txt": b"data", "/share/b.txt": b"more"})
+    app = _bare_app(connect(nas))
+    app.client._log = app.log_msg
+
+    root = {"path": "/share", "isdir": True, "size": 0, "mtime": None, "crtime": None}
+    app._download_worker([root], str(dest), False, 2)
+
+    assert target.read_bytes() == b"keep" and os.stat(str(target)).st_mtime == OLD
+    assert (dest / "share" / "b.txt").read_bytes() == b"more"
+    logged = _logged(app)
+    assert any(m.startswith("Skipped (hard link) ") for m in logged)
+    assert logged[-1].startswith("Done. 1 file(s) downloaded; 1 link(s) skipped")
 
 
 def _asking(app, answers):

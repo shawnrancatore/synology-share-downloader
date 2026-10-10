@@ -23,7 +23,7 @@ from tkinter import filedialog, messagebox, ttk
 
 from . import APP_NAME
 from .about import build_help_menu
-from .client import ShareError, SynoShareClient, apply_file_times, hide_share_link, redact_share_url
+from .client import SKIPPED, ShareError, SynoShareClient, apply_file_times, hide_share_link, redact_share_url
 from .plan import plan_downloads
 from .util import format_eta as _fmt_time
 from .util import human_size as human
@@ -329,7 +329,7 @@ class App:
                     return
 
             # 3) download in parallel, each file resumable + skip-if-complete
-            st = {"bytes": 0, "files": 0, "skipped": 0, "failed": []}
+            st = {"bytes": 0, "files": 0, "skipped": 0, "links": 0, "failed": []}
             active = {}
             lock = threading.Lock()
             start = time.time()
@@ -387,6 +387,9 @@ class App:
                         if ok:
                             st["bytes"] += size or got
                             st["files"] += 1
+                        elif ok is SKIPPED:  # a link; the client logged why
+                            st["bytes"] += size
+                            st["links"] += 1
                 except ShareError as e:
                     with lock:
                         active.pop(rpath, None)
@@ -425,6 +428,8 @@ class App:
                 msg += " (%d already complete)" % st["skipped"]
             if st["failed"]:
                 msg += "; %d failed" % len(st["failed"])
+            if st["links"]:
+                msg += "; %d link(s) skipped" % st["links"]
             if plan.skipped:
                 msg += "; %d unsafe name(s) skipped" % len(plan.skipped)
             if dir_stamps:
