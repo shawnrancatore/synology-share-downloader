@@ -87,3 +87,12 @@ def test_download_errors_do_not_log_the_link_id(tmp_path, monkeypatch, fake_nas,
 def test_user_agent_carries_the_version():
     client = SynoShareClient("http://gofile.me/AbCdE/ExAmPlE123", "pw")
     assert client.session.headers["User-Agent"] == "SynologyShareDownloader/" + __version__
+
+
+def test_scrubbing_a_short_link_id_leaves_other_words_alone():
+    client = SynoShareClient("http://gofile.me/AbCdE/x", "pw")
+    text = ("HTTPSConnectionPool(host='nas.example.com', port=5001): Max retries exceeded with url: "
+            "/sharing/webapi/entry.cgi?api=SYNO.FolderSharing.Download&_sharing_id=%22x%22&path=x")
+    assert client._scrub(text) == (
+        "HTTPSConnectionPool(host='nas.example.com', port=5001): Max retries exceeded with url: "
+        "/sharing/webapi/entry.cgi?api=SYNO.FolderSharing.Download&_sharing_id=…&path=…")

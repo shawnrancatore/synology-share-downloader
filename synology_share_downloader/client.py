@@ -215,12 +215,15 @@ class SynoShareClient:
     def _scrub(self, text):
         """text with the share's id replaced by "…", for logs and error messages.
 
-        Request errors can quote the URL, and download URLs carry the id.
+        Request errors can quote the URL, and download URLs carry the id as
+        _sharing_id=%22<id>%22. A bare id is replaced only as a whole word, so
+        a short id does not garble the rest of the message.
         """
+        quoted = json.dumps(self.link_id)
         text = str(text)
-        for form in (self.link_id, urllib.parse.quote(self.link_id, safe="")):
+        for form in (urllib.parse.quote_plus(quoted), quoted):
             text = text.replace(form, "…")
-        return text
+        return re.sub(r"(?<![A-Za-z0-9])%s(?![A-Za-z0-9])" % re.escape(self.link_id), "…", text)
 
     def _entry_url(self):
         return self.base + "/sharing/webapi/entry.cgi"
