@@ -167,25 +167,38 @@ def parse_share_url(url):
     )
 
 
+def _hide(text, secret):
+    """text with each whole-word occurrence of secret replaced by "…"."""
+    return re.sub(r"(?<![A-Za-z0-9])%s(?![A-Za-z0-9])" % re.escape(secret), "…", text)
+
+
 def redact_share_url(url):
     """The share link as it may appear in a log: its last segment becomes "…".
 
     The last segment is the share's own id, which is the secret part of the
     link: "http://gofile.me/AbCdE/ExAmPlE123" -> "http://gofile.me/AbCdE/…".
-    A user name, password, query or fragment is dropped too.
+    A user name, password, query, fragment or ";" parameter is dropped too,
+    a backslash counts as a "/", and the id parse_share_url() reads from the
+    link is removed wherever it appears.
     """
     text = (url or "").strip()
+    try:
+        link_id = parse_share_url(text)[1]
+    except (ShareError, ValueError):
+        link_id = None
+    text = text.replace("\\", "/")
     has_scheme = "://" in text
     try:
         parts = urllib.parse.urlsplit(text if has_scheme else "//" + text)
     except ValueError:
         return "…"
     host = parts.netloc.rpartition("@")[2]
-    segs = [s for s in parts.path.split("/") if s]
+    segs = [s for s in parts.path.split(";", 1)[0].split("/") if s]
     if segs:
         segs[-1] = "…"
     out = host + "".join("/" + s for s in segs)
-    return parts.scheme + "://" + out if has_scheme else out
+    out = parts.scheme + "://" + out if has_scheme else out
+    return _hide(out, link_id) if link_id else out
 
 
 class SynoShareClient:
@@ -227,7 +240,7 @@ class SynoShareClient:
         text = str(text)
         for form in (urllib.parse.quote_plus(quoted), quoted):
             text = text.replace(form, "…")
-        return re.sub(r"(?<![A-Za-z0-9])%s(?![A-Za-z0-9])" % re.escape(self.link_id), "…", text)
+        return _hide(text, self.link_id)
 
     def _refuse_links(self, local_path, part):
         """Log and return True if local_path or its .part file is a link."""

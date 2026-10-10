@@ -61,6 +61,13 @@ def test_apply_file_times(tmp_path):
     ("http://you@example.com/AbCdE/ExAmPlE123", "http://example.com/AbCdE/\u2026"),
     ("http://[bad/ExAmPlE123", "\u2026"),
     ("", ""),
+    # Path parameters and backslashes must not leave the id in the log.
+    ("http://gofile.me/AbCdE/ExAmPlE123/;x", "http://gofile.me/AbCdE/\u2026"),
+    ("http://gofile.me/AbCdE/ExAmPlE123;x", "http://gofile.me/AbCdE/\u2026"),
+    ("gofile.me\\AbCdE\\ExAmPlE123", "gofile.me/AbCdE/\u2026"),
+    ("http://gofile.me\\AbCdE\\ExAmPlE123", "http://gofile.me/AbCdE/\u2026"),
+    ("http://gofile.me/AbCdE\\ExAmPlE123", "http://gofile.me/AbCdE/\u2026"),
+    ("http://gofile.me/AbCdE/ExAmPlE123\\", "http://gofile.me/AbCdE/\u2026"),
 ])
 def test_redact_share_url_hides_the_last_segment(url, logged):
     assert redact_share_url(url) == logged
