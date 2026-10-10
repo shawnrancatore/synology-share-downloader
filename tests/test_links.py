@@ -140,12 +140,28 @@ def test_a_part_link_to_an_existing_outside_file_leaves_it_alone(dirs, fake_nas,
     assert any(m.startswith("Skipped (symbolic link) ") for m in logs)
 
 
-@pytest.mark.skipif(not hasattr(os, "O_NOFOLLOW"), reason="this OS cannot refuse a link on open")
-def test_a_link_that_appears_during_the_request_is_skipped_at_once(dirs, fake_nas, connect, monkeypatch):
+# open() refuses a symbolic link where the OS has O_NOFOLLOW. Windows does not,
+# so there the link is followed, and a last check keeps the app from writing.
+@pytest.mark.parametrize("o_nofollow", [True, False])
+@pytest.mark.parametrize("already_have", [b"", b"da"])  # a fresh .part file is truncated, a resumed one appended to
+def test_a_link_that_appears_during_the_request_is_skipped_at_once(dirs, fake_nas, connect, monkeypatch,
+                                                                   o_nofollow, already_have):
     dest, outside = dirs
     target = _outside_file(outside)
+    part = dest / "a.txt.part"
+    if already_have:
+        part.write_bytes(already_have)
+    if not o_nofollow:
+        monkeypatch.setattr(client_module, "_PART_FLAGS",
+                            client_module._PART_FLAGS & ~getattr(os, "O_NOFOLLOW", 0))
     nas = _nas(fake_nas)
-    nas.on_download = lambda: _link(target, dest / "a.txt.part")
+
+    def swap_in_a_link():
+        if already_have:
+            os.remove(str(part))
+        _link(target, part)
+
+    nas.on_download = swap_in_a_link
     logs = []
     _no_sleep(monkeypatch)
 

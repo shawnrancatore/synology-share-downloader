@@ -377,7 +377,12 @@ class SynoShareClient:
         return shared
 
     def _open_part(self, part, resume):
-        """Open the .part file for writing, or log why not and return None."""
+        """Open the .part file for writing, or log why not and return None.
+
+        Without O_NOFOLLOW, as on Windows, open() follows a symbolic link put
+        at the path since the last check. So the path is checked once more
+        after the open, before a byte of the file changes.
+        """
         try:
             fd = os.open(part, _PART_FLAGS | (os.O_APPEND if resume else 0), 0o666)
         except OSError as e:
@@ -386,7 +391,11 @@ class SynoShareClient:
                 return None
             raise
         try:
-            if os.fstat(fd).st_nlink <= 1:
+            if os.fstat(fd).st_nlink > 1:
+                refused = _SKIP_HARD_LINK
+            elif os.path.islink(part):
+                refused = _SKIP_SYMLINK
+            else:
                 if not resume:
                     os.ftruncate(fd, 0)
                 return os.fdopen(fd, "ab" if resume else "wb")
@@ -394,7 +403,7 @@ class SynoShareClient:
             os.close(fd)
             raise
         os.close(fd)
-        self._log(_SKIP_HARD_LINK % part)
+        self._log(refused % part)
         return None
 
     def _entry_url(self):
