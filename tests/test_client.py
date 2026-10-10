@@ -2,6 +2,7 @@
 # Licensed under the Apache License, Version 2.0.
 import os
 import time
+import urllib.parse
 
 import pytest
 import requests
@@ -91,6 +92,9 @@ REDACTIONS = [
     ("http://gofile.me:ExAmPlE123/AbCdE/x", "\u2026"),
     ("ftp://gofile.me/AbCdE/ExAmPlE123", "\u2026"),
     ("Link: http://gofile.me/AbCdE/ExAmPlE123", "\u2026"),
+    ("<http://gofile.me/AbCdE/ExAmPlE123>", "\u2026"),
+    ('"http://gofile.me/AbCdE/ExAmPlE123"', "\u2026"),
+    ("http:/gofile.me/AbCdE/ExAmPlE123", "\u2026"),
     # Nothing secret to hide.
     ("http://gofile.me", "http://gofile.me"),
 ]
@@ -112,8 +116,29 @@ def test_a_link_that_does_not_parse_is_refused_without_quoting_it(url):
 
 @pytest.mark.parametrize("url", [u for u, _ in REDACTIONS if "xAmPlE123" in u])
 def test_hide_share_link_cleans_text_that_quotes_the_link(url):
-    for text in ("cannot open %s" % url, "cannot open %r" % url,
-                 "bad id ExAmPlE123", "_sharing_id=%22ExAmPlE123%22"):
+    for text in ("cannot open %s" % url, "cannot open %r" % url):
+        assert "ExAmPlE123" not in hide_share_link(text, url)
+
+
+def _reads_the_id(url):
+    """True if the app reads ExAmPlE123 as the id of url, as pasted or percent-decoded."""
+    decoded = url
+    for _ in range(3):
+        decoded = urllib.parse.unquote(decoded)
+    for form in (url, decoded.replace("\\", "/")):
+        try:
+            if parse_share_url(form)[1] == "ExAmPlE123":
+                return True
+        except ShareError:
+            pass
+    return False
+
+
+# Text that quotes the id alone is cleaned where the app reads that id from
+# the link. Where it reads another id, or none, it has no id to look for.
+@pytest.mark.parametrize("url", [u for u, _ in REDACTIONS if _reads_the_id(u)])
+def test_hide_share_link_cleans_text_that_quotes_the_id(url):
+    for text in ("bad id ExAmPlE123", "_sharing_id=%22ExAmPlE123%22"):
         assert "ExAmPlE123" not in hide_share_link(text, url)
 
 
@@ -121,6 +146,44 @@ def test_hide_share_link_keeps_the_rest_of_the_message():
     url = "http://gofile.me/AbCdE/ExAmPlE123"
     assert hide_share_link("Max retries exceeded for %s (host gofile.me)" % url, url) == (
         "Max retries exceeded for http://gofile.me/AbCdE/\u2026 (host gofile.me)")
+
+
+def test_hide_share_link_hides_the_id_inside_a_longer_word():
+    url = "http://gofile.me/AbCdE/\nExAmPlE123"
+    assert parse_share_url(url)[1] == "ExAmPlE123"
+    quoted = repr("/AbCdE/\nExAmPlE123")  # the id follows a backslash and an "n"
+    assert hide_share_link("no such share: %s" % quoted, url) == "no such share: '/AbCdE/\\n\u2026'"
+
+
+def test_hide_share_link_leaves_a_short_id_alone():
+    text = "Max retries exceeded with url: /sharing/webapi/entry.cgi?path=x"
+    assert hide_share_link(text, "http://gofile.me/AbCdE/x") == text
+
+
+NOT_A_LINK = ("That doesn't look like a Synology share link.\n"
+              "Expected something like: http://gofile.me/XXXXX/YYYYYYYYY")
+
+# Pastes the app does not read as a share link. Its message about them is shown as written.
+NOT_LINKS = [
+    "<http://gofile.me/AbCdE/ExAmPlE123>",
+    "Link: http://gofile.me/AbCdE/ExAmPlE123",
+    '"http://gofile.me/AbCdE/ExAmPlE123"',
+    "http:/gofile.me/AbCdE/ExAmPlE123",
+    "not a link",
+    # A piece of the message itself.
+    "http://gofile.me/",
+    "http://",
+    "link",
+    ".",
+]
+
+
+@pytest.mark.parametrize("paste", NOT_LINKS)
+def test_hide_share_link_leaves_the_apps_own_message_as_written(paste):
+    with pytest.raises(ShareError) as err:
+        parse_share_url(paste)
+    assert str(err.value) == NOT_A_LINK
+    assert hide_share_link(err.value, paste) == NOT_A_LINK
 
 
 def test_download_errors_do_not_log_the_link_id(tmp_path, monkeypatch, fake_nas, connect):

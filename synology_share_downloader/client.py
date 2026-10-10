@@ -162,6 +162,10 @@ def apply_file_times(path, mtime=None, crtime=None):
         _set_windows_ctime(path, crtime)
 
 
+_NOT_A_SHARE_LINK = ("That doesn't look like a Synology share link.\n"
+                     "Expected something like: http://gofile.me/XXXXX/YYYYYYYYY")
+
+
 def parse_share_url(url):
     """Return (quickconnect_id, link_id, is_gofile) from a share URL.
 
@@ -196,10 +200,7 @@ def parse_share_url(url):
             link = parts[-1] if parts else None
             return sub, link, is_gofile
 
-    raise ShareError(
-        "That doesn't look like a Synology share link.\n"
-        "Expected something like: http://gofile.me/XXXXX/YYYYYYYYY"
-    )
+    raise ShareError(_NOT_A_SHARE_LINK)
 
 
 def _hide(text, secret):
@@ -265,31 +266,48 @@ def redact_share_url(url):
     return _hide(out, link_id) if link_id else out
 
 
-_WORD = re.compile(r"[A-Za-z0-9]+")
+def _quoted_forms(url):
+    """The ways a message may quote the pasted link url, longest first.
+
+    As pasted, trimmed, percent-decoded (up to three times), and each of
+    those as repr() writes it.
+    """
+    forms = [url, url.strip()]
+    for _ in range(3):
+        forms.append(urllib.parse.unquote(forms[-1]))
+    forms += [repr(form)[1:-1] for form in forms]
+    return sorted({form for form in forms if form.strip()}, key=len, reverse=True)
 
 
 def hide_share_link(text, url):
-    """text, safe to log: nothing of the share link url beyond its redacted form.
+    """text with the pasted share link url cut down to its redacted form.
 
-    The link itself is replaced by redact_share_url(url). Then every word of
-    the link, as pasted and at each level of percent-decoding, that the
-    redacted form does not show is replaced by "…". So an error message that
-    quotes part of the link cannot carry the share's id.
+    Two things are replaced, and nothing else in text changes:
+
+    - each exact occurrence of url, in any form _quoted_forms() lists,
+      becomes redact_share_url(url);
+    - the id parse_share_url() reads from url, as pasted or percent-decoded,
+      becomes "…" wherever it appears, also inside a longer word. An id
+      shorter than six characters is left alone: it could be part of any
+      word.
+
+    The app's own "not a share link" message quotes nothing of the link. It
+    is returned as written, even when url is a piece of it, such as "http://".
     """
-    raw = (url or "").strip()
-    shown = redact_share_url(raw)
+    url = url or ""
     text = str(text)
-    if raw:
-        text = text.replace(raw, shown)
-    words, form = set(), raw.replace("\\", "/")
-    for _ in range(10):
-        words.update(_WORD.findall(form))
-        decoded = urllib.parse.unquote(form)
-        if decoded == form:
-            break
-        form = decoded
-    for word in sorted(words - set(_WORD.findall(shown)), key=len, reverse=True):
-        text = _hide(text, word)
+    if text == _NOT_A_SHARE_LINK:
+        return text
+    shown = redact_share_url(url)
+    for form in _quoted_forms(url):
+        text = text.replace(form, shown)
+    for form in (url, _decoded(url)):
+        try:
+            link_id = parse_share_url(form)[1]
+        except ShareError:
+            continue
+        if link_id and len(link_id) >= 6:
+            text = text.replace(link_id, "…")
     return text
 
 
@@ -325,8 +343,8 @@ class SynoShareClient:
         """text with the share's id replaced by "…", for logs and error messages.
 
         Request errors can quote the URL, and download URLs carry the id as
-        _sharing_id=%22<id>%22. A bare id is replaced only as a whole word, so
-        a short id does not garble the rest of the message.
+        _sharing_id=%22<id>%22. An id shorter than six characters is replaced
+        only as a whole word, so it does not garble the rest of the message.
         """
         quoted = json.dumps(self.link_id)
         text = str(text)

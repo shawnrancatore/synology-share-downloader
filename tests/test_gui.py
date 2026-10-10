@@ -206,3 +206,25 @@ def test_connecting_never_logs_the_share_id(monkeypatch, url, client_class):
 def test_an_unexpected_error_still_says_what_went_wrong(monkeypatch):
     shown = _connect(monkeypatch, "http://gofile.me/AbCdE/ExAmPlE123", _Unreachable)
     assert any(line.startswith("Unexpected error: no route to ") for line in shown)
+
+
+NOT_A_LINK = ("That doesn't look like a Synology share link.\n"
+              "Expected something like: http://gofile.me/XXXXX/YYYYYYYYY")
+
+
+@pytest.mark.parametrize("paste", [
+    "<http://gofile.me/AbCdE/ExAmPlE123>",
+    "Link: http://gofile.me/AbCdE/ExAmPlE123",
+    '"http://gofile.me/AbCdE/ExAmPlE123"',
+    "http:/gofile.me/AbCdE/ExAmPlE123",
+    "not a link",
+    # A piece of the message itself.
+    "http://gofile.me/",
+    "http://",
+    "link",
+    ".",
+])
+def test_a_paste_that_is_not_a_link_gets_the_apps_message_as_written(monkeypatch, paste):
+    shown = _connect(monkeypatch, paste, _Unreachable)
+    assert NOT_A_LINK in shown
+    assert not any("ExAmPlE123" in line for line in shown), shown
