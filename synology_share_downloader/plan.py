@@ -19,10 +19,13 @@ Linux alike; anything else is skipped and logged.
 """
 
 import os
-import re
 from dataclasses import dataclass, field
 
-_DRIVE = re.compile(r"^[A-Za-z]:")
+# Windows opens these devices instead of a file, whatever the extension.
+_DEVICES = frozenset(
+    ["CON", "PRN", "AUX", "NUL", "CONIN$", "CONOUT$"]
+    + [p + d for p in ("COM", "LPT") for d in "0123456789\u00b9\u00b2\u00b3"])
+_NOT_ON_WINDOWS = frozenset('<>"|?*')
 
 
 class UnsafePathError(ValueError):
@@ -30,18 +33,27 @@ class UnsafePathError(ValueError):
 
 
 def _part_problem(part):
-    """Why one path component is unsafe on some OS, or None if it is fine."""
+    """Why one path component is unsafe on some OS, or None if it is fine.
+
+    The same rules apply on every OS, so a share downloads the same way on
+    Windows, macOS and Linux.
+    """
     if part == "":
         return "it is an absolute path or has an empty part"
-    if "\x00" in part:
-        return "it contains a NUL character"
+    if any(ord(c) < 32 for c in part):
+        return "it contains a control character"
     if "\\" in part:
         return "it contains a backslash, which Windows reads as a folder separator"
-    if _DRIVE.match(part):
-        return "it starts with a drive letter"
+    if ":" in part:
+        return "it contains ':', which Windows reads as a drive or a file stream"
+    if _NOT_ON_WINDOWS.intersection(part):
+        return "it contains a character Windows does not allow in names (< > \" | ? *)"
     if part.strip(". ") == "":
         # ".", "..", and spellings Windows trims down to them, such as ".. "
         return "it has a '.' or '..' part"
+    stem = part.rstrip(". ").split(".", 1)[0].rstrip(" ").upper()
+    if stem in _DEVICES:
+        return "it is a Windows device name (such as CON, NUL or COM1)"
     return None
 
 

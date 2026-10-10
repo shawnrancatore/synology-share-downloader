@@ -15,7 +15,8 @@ from synology_share_downloader import plan as plan_module
 from synology_share_downloader.plan import UnsafePathError, plan_downloads, safe_local_path
 
 # Names a hostile share might list, in POSIX and Windows spellings. Each one
-# could step outside the destination folder on at least one OS.
+# is unsafe as a file name on at least one OS: it could step outside the
+# destination folder, open a device, or write to a hidden file stream.
 HOSTILE_NAMES = [
     "../x",
     "a/../../x",
@@ -31,6 +32,39 @@ HOSTILE_NAMES = [
     "\\x",
     "\\\\server\\share\\x",
     ".. ",
+    # A colon: a drive to ntpath ("1:x" too), or an NTFS file stream.
+    "1:x",
+    "a:b",
+    "foo::$DATA",
+    "..::$INDEX_ALLOCATION",
+    # Characters Windows does not allow, and control characters.
+    "a<b",
+    "a>b",
+    'a"b',
+    "a|b",
+    "a?b",
+    "a*b",
+    "x -> y",
+    "a\x01b",
+    "a\x1fb",
+    "a\tb",
+    "a\nb",
+]
+
+# DOS device names: on Windows, opening one opens the device, with any
+# extension, in any case, and with trailing dots or spaces.
+DEVICE_NAMES = (["CON", "PRN", "AUX", "NUL", "CONIN$", "CONOUT$"]
+                + [p + d for p in ("COM", "LPT") for d in "0123456789\u00b9\u00b2\u00b3"])
+HOSTILE_NAMES += DEVICE_NAMES + [
+    "COM1.part",
+    "LPT1.txt",
+    "con",
+    "Nul.txt",
+    "AUX .txt",
+    "CON.",
+    "prn  ",
+    "CONIN$.log",
+    "com\u00b2.x",
 ]
 
 # Odd but harmless names: they stay inside the destination.
@@ -39,8 +73,13 @@ BENIGN_NAMES = [
     "naïve résumé.pdf",
     "a..b",
     ".hidden",
-    "x -> y",
     "...x",
+    "CONSOLE.txt",
+    "COM10",
+    "LPT",
+    "a.con",
+    "nul-x.txt",
+    "auxiliary",
 ]
 
 
@@ -102,6 +141,26 @@ def test_windows_rules_reject_hostile_names(windows_paths, name):
 def test_windows_rules_keep_benign_names_inside(windows_paths, name):
     local = safe_local_path("C:\\dest", "/share/" + name, "")
     assert local == "C:\\dest\\share\\" + name
+
+
+@pytest.mark.parametrize("name, reason", [
+    ("CON", "device"),
+    ("COM1.part", "device"),
+    ("LPT\u00b3.txt", "device"),
+    ("foo::$DATA", "':'"),
+    ("1:x", "':'"),
+    ("a?b", "Windows does not allow"),
+    ("a\x01b", "control character"),
+])
+@pytest.mark.parametrize("rules", ["host", "windows"])
+def test_the_logged_reason_is_the_real_one(request, name, reason, rules):
+    if rules == "windows":
+        request.getfixturevalue("windows_paths")
+    dest = "C:\\dest" if rules == "windows" else str(request.getfixturevalue("tmp_path"))
+    with pytest.raises(UnsafePathError) as err:
+        safe_local_path(dest, "/share/" + name, "")
+    assert reason in str(err.value)
+    assert "link" not in str(err.value)
 
 
 def test_safe_local_path_mirrors_folders(tmp_path):

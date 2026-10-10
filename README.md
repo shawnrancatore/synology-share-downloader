@@ -94,6 +94,12 @@ docstrings are its only documentation.
   `quickconnect.to` and `quickconnect.cn`. It does not sign in to a Synology
   account, and it does not use QuickConnect's relay service, so the app must be
   able to reach the NAS directly.
+- **No names that are unsafe on any system.** To keep every file inside
+  **Save to:** on Windows, macOS and Linux alike, it skips a name with a `..`
+  part, a backslash, a `:`, a control character or one of `< > " | ? *`, and a
+  Windows device name such as `CON`, `NUL` or `aux.c`. It skips them on every
+  system, so a Linux share with a file named `aux.c` or `a:b` downloads without
+  it. It also never writes through a link. Each skip is logged.
 - **No sync and no upload.** It copies from the share to your computer. It
   changes nothing on the share and removes no local file that has gone from the
   share. A local file with the same name and a different size is downloaded

@@ -143,11 +143,16 @@ picked on its own lands directly in *Save to*. **Download entire share…** puts
 everything in a folder named after the share's top folder.
 
 **The log says `Skipped …`.**
-The share listed a name that would put a file outside your *Save to* folder,
-such as one with a `..` part, a drive letter or a backslash in it. The app
-doesn't download it, and if it's a folder, doesn't look inside it. The rest of
-the download carries on. A link inside *Save to* that points to a folder
-somewhere else is treated the same way.
+The share listed a name that Windows, macOS or Linux can't use as a plain file
+name inside your *Save to* folder. Such a name could put a file outside the
+folder, open a device, write to a hidden file stream, or be refused outright.
+That covers a name with a `..` part, a backslash, a `:`, a control character or
+one of `< > " | ? *`, and a name Windows reserves for a device, such as `CON`,
+`NUL`, `COM1` or `aux.c`. The app skips such names on
+every system, even one that would allow them. It doesn't download the file,
+and if it's a folder, doesn't look inside it. The rest of the download carries
+on. A link inside *Save to* that points to a folder somewhere else is treated
+the same way.
 
 The app also never writes through a link. If the file it would write, or its
 `.part` file, is already a link, it skips that file and logs
