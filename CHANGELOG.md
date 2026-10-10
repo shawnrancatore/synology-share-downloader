@@ -4,6 +4,18 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Security
+- **Downloads stay inside the destination folder.** File and folder names come
+  from the server, and a hostile share could list names such as `../x`,
+  `..\x` or `C:x` to write outside the folder you chose. Every local path is
+  now checked first. A name is skipped, with a `Skipped …` line in the log,
+  if it has a `.` or `..` part, an empty part, a backslash, a drive letter or
+  a NUL character, if it is listed outside the folder being downloaded, or if
+  it would resolve outside the destination through an existing link. A skipped
+  folder is not listed at all.
+
 ## [1.2.1] — 2026-07-08
 
 ### Security

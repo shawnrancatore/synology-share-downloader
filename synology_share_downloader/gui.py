@@ -24,6 +24,7 @@ from tkinter import filedialog, messagebox, ttk
 from . import APP_NAME
 from .about import build_help_menu
 from .client import ShareError, SynoShareClient, apply_file_times
+from .plan import plan_downloads
 from .util import format_eta as _fmt_time
 from .util import human_size as human
 
@@ -283,47 +284,24 @@ class App:
 
     def _download_worker(self, picks, dest, confirm, workers):
         try:
-            # 1) enumerate every file to download (and every folder to re-stamp)
+            # 1) enumerate every file to download (and every folder to re-stamp);
+            # names that would land outside dest are skipped and logged.
             self.set_status("Scanning selected items…")
-            jobs = []        # (remote_path, local_path, size, mtime, crtime)
-            dir_stamps = []   # (local_path, mtime, crtime) -- applied last
-            total_bytes = 0
-            scanned = 0
-
-            def local_of(remote_path, base_parent):
-                rel = remote_path[len(base_parent):].lstrip("/")
-                return os.path.join(dest, *rel.split("/"))
-
-            for m in picks:
-                base_parent = m["path"].rsplit("/", 1)[0]
-                if m["isdir"]:
-                    # the picked folder itself, then everything under it
-                    dir_stamps.append((local_of(m["path"], base_parent),
-                                       m.get("mtime"), m.get("crtime")))
-                    for e in self.client.walk(m["path"], stop=self.stop_flag.is_set):
-                        lp = local_of(e["path"], base_parent)
-                        if e["isdir"]:
-                            dir_stamps.append((lp, e.get("mtime"), e.get("crtime")))
-                        else:
-                            jobs.append((e["path"], lp, e["size"],
-                                         e.get("mtime"), e.get("crtime")))
-                            total_bytes += e["size"]
-                        scanned += 1
-                        if scanned % 200 == 0:
-                            self.set_status("Scanning… %d files, %s so far" %
-                                            (len(jobs), human(total_bytes)))
-                else:
-                    jobs.append((m["path"], local_of(m["path"], base_parent),
-                                 m["size"], m.get("mtime"), m.get("crtime")))
-                    total_bytes += m["size"]
-                if self.stop_flag.is_set():
-                    break
+            plan = plan_downloads(
+                self.client, picks, dest, log=self.log_msg, stop=self.stop_flag.is_set,
+                progress=lambda n, b: self.set_status("Scanning… %d files, %s so far" % (n, human(b))))
+            jobs = plan.files            # (remote_path, local_path, size, mtime, crtime)
+            dir_stamps = plan.folders    # (local_path, mtime, crtime) -- applied last
+            total_bytes = plan.total_bytes
 
             if self.stop_flag.is_set():
                 self.q.put(("dl_done", "Cancelled before starting."))
                 return
-            self.log_msg("Found %d file(s) in %d folder(s), %s total." %
-                         (len(jobs), len(dir_stamps), human(total_bytes)))
+            found = "Found %d file(s) in %d folder(s), %s total." % (
+                len(jobs), len(dir_stamps), human(total_bytes))
+            if plan.skipped:
+                found += " Skipped %d unsafe name(s)." % len(plan.skipped)
+            self.log_msg(found)
 
             # 2) size confirmation (for "Download entire share")
             if confirm:
@@ -431,6 +409,8 @@ class App:
                 msg += " (%d already complete)" % st["skipped"]
             if st["failed"]:
                 msg += "; %d failed" % len(st["failed"])
+            if plan.skipped:
+                msg += "; %d unsafe name(s) skipped" % len(plan.skipped)
             if dir_stamps:
                 msg += "; %d folder date(s) preserved" % len(dir_stamps)
             self.q.put(("dl_done", msg + "."))
