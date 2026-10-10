@@ -29,6 +29,16 @@ PASTED_LINKS = [
     "gofile.me/ExAmPlE123",
     "http://[ExAmPlE123]/AbCdE/x",
     "ExAmPlE123",
+    # A tab or a line break, pasted or percent-encoded.
+    "gofile.me\nExAmPlE123",
+    "gofile.me\tExAmPlE123",
+    "gofile.me\r\nExAmPlE123",
+    "gofile.me%0AExAmPlE123",
+    "gofile.me%09ExAmPlE123",
+    "gofile.me%250AExAmPlE123",
+    "gofile.me\nAbCdE\nExAmPlE123",
+    "http://gofile.me\nAbCdE\nExAmPlE123",
+    "gofile.me/AbCdE\tExAmPlE123/x",
 ]
 
 

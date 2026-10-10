@@ -95,6 +95,20 @@ REDACTIONS = [
     ("<http://gofile.me/AbCdE/ExAmPlE123>", "\u2026"),
     ('"http://gofile.me/AbCdE/ExAmPlE123"', "\u2026"),
     ("http:/gofile.me/AbCdE/ExAmPlE123", "\u2026"),
+    # A control character, pasted or percent-encoded. A URL parser drops a
+    # tab or a line break, which would join the host and the id.
+    ("gofile.me\nExAmPlE123", "\u2026"),
+    ("gofile.me\tExAmPlE123", "\u2026"),
+    ("gofile.me\r\nExAmPlE123", "\u2026"),
+    ("gofile.me%0AExAmPlE123", "\u2026"),
+    ("gofile.me%09ExAmPlE123", "\u2026"),
+    ("gofile.me%250AExAmPlE123", "\u2026"),
+    ("gofile.me\nAbCdE\nExAmPlE123", "\u2026"),
+    ("http://gofile.me\nAbCdE\nExAmPlE123", "\u2026"),
+    ("gofile.me/AbCdE\tExAmPlE123/x", "\u2026"),
+    ("http://gofile.me/AbCdE/\nExAmPlE123", "\u2026"),
+    ("gofile.me/AbCdE\x1f/ExAmPlE123", "\u2026"),
+    ("gofile.me/AbCdE\x7f/ExAmPlE123", "\u2026"),
     # Nothing secret to hide.
     ("http://gofile.me", "http://gofile.me"),
 ]

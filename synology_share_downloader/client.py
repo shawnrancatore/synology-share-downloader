@@ -227,6 +227,8 @@ def _decoded(url):
 # an optional port, and a first path segment made of letters, digits and "-".
 _PLAIN_HOST = re.compile(r"^[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)+(:[0-9]+)?$")
 _PLAIN_SEGMENT = re.compile(r"^[A-Za-z0-9-]+$")
+# urlsplit() drops a TAB, CR or LF, which would join the host and the id.
+_CONTROL = re.compile(r"[\x00-\x1f\x7f]")
 
 
 def redact_share_url(url):
@@ -240,22 +242,25 @@ def redact_share_url(url):
 
     The link is percent-decoded first (up to three times), a backslash counts
     as a "/", and a user name is dropped. Anything that is not a plain host
-    and path, such as a bare id or text that does not parse, becomes "…".
+    and path, such as a bare id or text that does not parse, becomes "…". So
+    does a link that then holds a control character, such as a line break.
     The id parse_share_url() reads from the link is also removed from the
     result, wherever it appears.
     """
     text = _decoded(url)
+    if _CONTROL.search(text):
+        return "…"
     has_scheme = "://" in text
     try:
         parts = urllib.parse.urlsplit(text if has_scheme else "//" + text)
     except ValueError:
         return "…"
     host = parts.netloc.rpartition("@")[2]
-    if not _PLAIN_HOST.match(host) or (has_scheme and parts.scheme not in ("http", "https")):
+    if not _PLAIN_HOST.fullmatch(host) or (has_scheme and parts.scheme not in ("http", "https")):
         return "…"
     out = (parts.scheme + "://" if has_scheme else "") + host
     segs = [seg for seg in parts.path.split("/") if seg]
-    if len(segs) >= 2 and _PLAIN_SEGMENT.match(segs[0]):
+    if len(segs) >= 2 and _PLAIN_SEGMENT.fullmatch(segs[0]):
         out += "/" + segs[0]
     if segs:
         out += "/…"
