@@ -23,7 +23,7 @@ from tkinter import filedialog, messagebox, ttk
 
 from . import APP_NAME
 from .about import build_help_menu
-from .client import ShareError, SynoShareClient, apply_file_times
+from .client import ShareError, SynoShareClient, apply_file_times, redact_share_url
 from .plan import plan_downloads
 from .util import format_eta as _fmt_time
 from .util import human_size as human
@@ -182,7 +182,7 @@ class App:
             self.tree.delete(i)
         self.nodes.clear()
         self.set_status("Connecting…")
-        self._append_log("Connecting to %s" % url)
+        self._append_log("Connecting to %s" % redact_share_url(url))
 
         def work():
             try:

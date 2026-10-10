@@ -4,7 +4,7 @@ A friendly, step-by-step guide for downloading files from a Synology share link.
 
 ## What you need
 
-- The **share link** — it looks like `http://gofile.me/75lxK/7vqFT49uA`.
+- The **share link** — it looks like `http://gofile.me/AbCdE/ExAmPlE123`.
 - The **password** for that share (if it's password-protected).
 - A Windows, macOS, or Linux computer.
 
@@ -145,6 +145,13 @@ share is up.
 **Is my password stored anywhere?**
 No. It's used only to log in to the share for the current session and is not
 saved to disk.
+
+**Can I share the log when I report a problem?**
+Yes, with care. The log shows the share link with its last part, the share's
+id, replaced by `…`, as in `Connecting to http://gofile.me/AbCdE/…`. It never
+shows the password. It can show the NAS's address and the names of your files,
+so replace those if you'd rather not share them. Never paste the full link or
+the password into an issue: issues are public.
 
 **Why does my computer warn me the app is unrecognized?**
 Because the app isn't code-signed (that needs a paid certificate). The warning

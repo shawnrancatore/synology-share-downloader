@@ -128,9 +128,9 @@ def parse_share_url(url):
     """Return (quickconnect_id, link_id, is_gofile) from a share URL.
 
     Accepts forms like:
-      http://gofile.me/75lxK/7vqFT49uA
-      https://quickconnect.to/75lxK/7vqFT49uA
-      https://<id>.quickconnect.to/sharing/7vqFT49uA
+      http://gofile.me/AbCdE/ExAmPlE123
+      https://quickconnect.to/AbCdE/ExAmPlE123
+      https://<id>.quickconnect.to/sharing/ExAmPlE123
     """
     url = url.strip()
     if "://" not in url:
@@ -161,6 +161,27 @@ def parse_share_url(url):
     )
 
 
+def redact_share_url(url):
+    """The share link as it may appear in a log: its last segment becomes "…".
+
+    The last segment is the share's own id, which is the secret part of the
+    link: "http://gofile.me/AbCdE/ExAmPlE123" -> "http://gofile.me/AbCdE/…".
+    A user name, password, query or fragment is dropped too.
+    """
+    text = (url or "").strip()
+    has_scheme = "://" in text
+    try:
+        parts = urllib.parse.urlsplit(text if has_scheme else "//" + text)
+    except ValueError:
+        return "…"
+    host = parts.netloc.rpartition("@")[2]
+    segs = [s for s in parts.path.split("/") if s]
+    if segs:
+        segs[-1] = "…"
+    out = host + "".join("/" + s for s in segs)
+    return parts.scheme + "://" + out if has_scheme else out
+
+
 class SynoShareClient:
     """One share: resolve() it, login(), then list and download.
 
@@ -189,6 +210,16 @@ class SynoShareClient:
         self.is_folder = True
 
     # ---- low level -------------------------------------------------------
+    def _scrub(self, text):
+        """text with the share's id replaced by "…", for logs and error messages.
+
+        Request errors can quote the URL, and download URLs carry the id.
+        """
+        text = str(text)
+        for form in (self.link_id, urllib.parse.quote(self.link_id, safe="")):
+            text = text.replace(form, "…")
+        return text
+
     def _entry_url(self):
         return self.base + "/sharing/webapi/entry.cgi"
 
@@ -235,7 +266,8 @@ class SynoShareClient:
             except Exception as e:  # network / json
                 last_err = str(e)
         if not info:
-            raise ShareError("Could not locate the Synology server for that link.\n(%s)" % last_err)
+            raise ShareError("Could not locate the Synology server for that link.\n(%s)"
+                             % self._scrub(last_err))
 
         self._server_info = info
         candidates = self._candidates(info)
@@ -491,7 +523,7 @@ class SynoShareClient:
                 if stop and stop():
                     return False
                 if attempt >= retries:
-                    raise ShareError("Failed after %d attempts: %s" % (retries, e))
+                    raise ShareError("Failed after %d attempts: %s" % (retries, self._scrub(e)))
                 wait = min(2 ** attempt, 15)
-                self._log("  retry %d/%d in %ds (%s)" % (attempt, retries, wait, e))
+                self._log("  retry %d/%d in %ds (%s)" % (attempt, retries, wait, self._scrub(e)))
                 time.sleep(wait)

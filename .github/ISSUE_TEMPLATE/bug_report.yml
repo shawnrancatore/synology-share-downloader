@@ -4,7 +4,10 @@ labels: ["bug"]
 body:
   - type: markdown
     attributes:
-      value: Thanks for taking the time to file a report!
+      value: |
+        Thanks for taking the time to file a report!
+
+        **Do not paste your share link or its password anywhere in this form.** Issues are public, and anyone with both can open the share.
   - type: textarea
     id: what-happened
     attributes:
@@ -28,17 +31,21 @@ body:
     attributes:
       label: App version
       description: See Help → About.
-      placeholder: "1.0.0"
+      placeholder: "1.2.1"
     validations:
       required: true
   - type: input
-    id: windows
+    id: os
     attributes:
-      label: Windows version
-      placeholder: "Windows 11 23H2"
+      label: Operating system
+      placeholder: "Windows 11 23H2 / macOS 15 / Ubuntu 24.04"
   - type: textarea
     id: logs
     attributes:
       label: Log output
-      description: Copy any text from the log area at the bottom of the app. Do NOT include the share password.
+      description: >-
+        Copy the text from the log area at the bottom of the app. The log shows the share link
+        with its last part replaced by "…"; keep it that way, and never add the link or the
+        password. The log can also show the NAS's address and your file names: replace them
+        if you'd rather not share them.
       render: text

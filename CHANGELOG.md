@@ -24,6 +24,15 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   callback for the same purpose.
 - urllib3's `InsecureRequestWarning` is no longer silenced for the whole
   process; it is silenced only for the hosts the app reports itself.
+- **The log keeps the share link secret.** It shows the link with its last
+  segment, the share's id, replaced by `…` (`http://gofile.me/AbCdE/…`), and
+  download errors no longer quote the id from the request URL.
+- The bug-report form warns not to paste share links or passwords, and says
+  what the log does show.
+
+### Changed
+- Examples and tests use an obviously fake share link,
+  `http://gofile.me/AbCdE/ExAmPlE123`.
 
 ## [1.2.1] — 2026-07-08
 
