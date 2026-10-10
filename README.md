@@ -2,169 +2,242 @@
 
 # Synology Share Downloader
 
+**Download a Synology share link file by file, with resume, instead of as one giant ZIP.**
+
+<!-- bricoleur:intro -->
+<!-- /bricoleur:intro -->
+
 [![Release](https://img.shields.io/github/v/release/shawnrancatore/synology-share-downloader?sort=semver)](https://github.com/shawnrancatore/synology-share-downloader/releases)
 [![CI](https://github.com/shawnrancatore/synology-share-downloader/actions/workflows/ci.yml/badge.svg)](https://github.com/shawnrancatore/synology-share-downloader/actions/workflows/ci.yml)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 [![Platforms](https://img.shields.io/badge/platforms-Windows%20%7C%20macOS%20%7C%20Linux-0078D6)](https://github.com/shawnrancatore/synology-share-downloader/releases)
 
-<img width="1291" height="1038" alt="image" src="https://github.com/user-attachments/assets/0d5b2b76-5f66-4584-9c84-0c6b26488825" />
+```mermaid
+flowchart LR
+    L["share link<br/>gofile.me/AbCdE/…"] -->|"ask QuickConnect<br/>where the NAS is"| A["the NAS's addresses"]
+    A -->|"first one that answers"| N["the NAS"]
+    N -->|"log in with the<br/>share password"| T["folder tree"]
+    T -->|"what you pick;<br/>unsafe names skipped"| F["files, 1–8 at a time,<br/>each resumable"]
+    F --> D["your Save to folder"]
+```
 
-**Download every file from a Synology share link — one file at a time, with
-resume — instead of squashing the whole folder into one giant ZIP.**
+## What it does
 
-Synology's *"Download Folder"* button on a shared link bundles everything into a
-single ZIP. That's painful for large folders: no resume, no progress, and one
-network blip means starting over. This little Windows app browses the shared
-folder and downloads the files individually, keeping the folder structure **and
-the original file dates**, and it can pick up right where it left off.
+Synology's own download button on a shared folder bundles everything into one
+ZIP, so a network blip on a big folder means starting over. This app fetches the
+files one by one instead.
 
-No Synology account required — just the public share link and its password.
-Nothing to install for the person running it — it's a single portable app for
-**Windows, macOS, and Linux**.
+- Opens a Synology folder-share link (the `gofile.me` kind, which goes through
+  QuickConnect, Synology's service for finding a NAS by name) with the share's
+  password. You need no Synology account.
+- Shows the share as a folder tree and downloads what you pick, or the whole
+  share, 1 to 8 files at a time (4 by default), keeping the folder structure.
+- Resumes: an interrupted file continues from its `.part` file, and a re-run
+  skips files that are already complete. Files and folders keep the modified
+  dates the share lists for them, and on Windows the creation dates too.
 
-> Works with the `http://gofile.me/XXXXX/YYYYYYYYY` style links (Synology
-> QuickConnect shared folders).
+## Quick start
 
----
+Most people want a ready-made build: see [Download a release](#download-a-release).
+To run it from source, with Python 3.9 or later:
 
-## Features
+```sh
+git clone https://github.com/shawnrancatore/synology-share-downloader
+cd synology-share-downloader
+python3 -m venv .venv
+. .venv/bin/activate
+pip install -r requirements.txt
+python app.py
+```
 
-- 🗂️ **Browse the share** in a folder tree and pick exactly what you want.
-- 📥 **Download the entire share** in one click — with a total-size warning first.
-- 🚀 **Parallel downloads** (1–8 at once, configurable) for real speed.
-- ⬇️ **File-by-file downloads** — no forced ZIP.
-- ⏯️ **Resumable** — interrupted downloads continue via HTTP Range; finished
-  files are skipped on re-run.
-- 🕒 **Preserves dates** — original modified time (and creation time on Windows)
-  on both **files and folders**, so everything keeps its familiar age. Empty
-  folders are recreated too.
-- 🌲 **Keeps the folder structure** under a destination you choose.
-- 📊 **Live progress** — per-file and overall, with speed and ETA.
-- 📦 **Portable** — a single app for **Windows, macOS, and Linux**, no installer,
-  no Python needed to run it.
+On Windows, make the venv with `py -m venv .venv` and activate it with
+`.venv\Scripts\activate`. On Debian or Ubuntu, Tkinter (the GUI toolkit) comes
+from the `python3-tk` package.
 
-## Download & run (for end users)
+Paste the share link and its password, click **Connect**, pick folders or files,
+choose a folder under **Save to:**, and click **Download selected**.
+[docs/USAGE.md](docs/USAGE.md) walks through each screen.
 
-Grab the build for your OS from the
-[**Releases**](https://github.com/shawnrancatore/synology-share-downloader/releases)
+**How to tell it worked:** a window titled **Synology Share Downloader** opens
+with the **Share link:** and **Password:** boxes and **Connect** at the top, and
+`Enter a share link and password, then click Connect.` above the log.
+
+## How it works
+
+The link carries two ids: the NAS's QuickConnect id and the share's own id. The
+app asks QuickConnect where that NAS is, tries its addresses in a fixed order,
+and uses the first that answers. It logs in to the share with the password,
+lists folders through Synology's `FolderSharing` web API, and downloads each
+file over HTTPS. An interrupted file resumes with an HTTP Range request, which
+asks for the file from a given byte onwards. Before anything is written, each
+name from the share is checked, so that every file lands inside your
+**Save to:** folder. The
+[full guide](https://bricoleur.ai/projects/synology-share-downloader) walks
+through each step.
+
+The protocol code is in
+[`synology_share_downloader/client.py`](synology_share_downloader/client.py),
+apart from the GUI, so you can use `SynoShareClient` from your own scripts. Its
+docstrings are its only documentation.
+
+## What it deliberately does not do
+
+- **No content check.** A file counts as complete when its size on disk matches
+  the size the share lists. There is no checksum, so a local file of the right
+  size but different content is skipped, not downloaded again.
+- **No certificate check on direct addresses.** The QuickConnect lookup and the
+  NAS's QuickConnect name use verified HTTPS. The fallback to the NAS's public
+  IP, DDNS name and local addresses does not check the certificate. The app
+  logs `certificate not verified for <host>` and asks before it sends the
+  password that way. See [Connections and certificates](#connections-and-certificates).
+- **QuickConnect share links only.** It opens folder-share links on `gofile.me`,
+  `quickconnect.to` and `quickconnect.cn`. It does not sign in to a Synology
+  account, and it does not use QuickConnect's relay service, so the app must be
+  able to reach the NAS directly.
+- **No sync and no upload.** It copies from the share to your computer. It
+  changes nothing on the share and removes no local file that has gone from the
+  share. A local file with the same name and a different size is downloaded
+  again and replaced.
+- **No code signing.** The release builds are unsigned, so Windows and macOS
+  warn the first time you open one.
+
+## Download a release
+
+Get the archive for your OS from the
+[Releases](https://github.com/shawnrancatore/synology-share-downloader/releases)
 page:
 
 | OS | Download | Run |
 |----|----------|-----|
-| **Windows** | `…-win64.zip` (or the bare `.exe`) | Unzip, double-click `SynologyShareDownloader.exe` |
-| **macOS** | `…-macos-arm64.zip` | Unzip, drag `SynologyShareDownloader.app` to Applications, open it |
-| **Linux** | `…-linux-x86_64.tar.gz` | `tar xzf …tar.gz` then `./SynologyShareDownloader` |
+| Windows | `…-win64.zip` | Unzip, double-click `SynologyShareDownloader.exe` |
+| macOS (Apple Silicon) | `…-macos-arm64.zip` | Unzip, drag `SynologyShareDownloader.app` to Applications, open it |
+| Linux (x86-64) | `…-linux-x86_64.tar.gz` | `tar xzf …tar.gz`, then `./SynologyShareDownloader` |
 
-Then paste the share link + password → **Connect**, pick folders/files, choose a
-destination, and click **Download selected**.
+There is no installer and no Python needed. There is no build for Intel Macs:
+run it from source there, as in [Quick start](#quick-start).
 
-📖 **Full step-by-step guide:** [docs/USAGE.md](docs/USAGE.md)
+The apps are not code-signed, so the first run prompts:
 
-> **First-run security prompts** (the app isn't code-signed):
-> - **Windows:** SmartScreen → **More info → Run anyway**.
-> - **macOS:** right-click the app → **Open** → **Open** (or *System Settings →
->   Privacy & Security → Open Anyway*).
-> - **Linux:** make it executable if needed — `chmod +x SynologyShareDownloader`.
->
-> Or build it yourself (below).
+- **Windows:** SmartScreen → **More info** → **Run anyway**.
+- **macOS:** right-click the app → **Open** → **Open**, or *System Settings →
+  Privacy & Security → Open Anyway*.
+- **Linux:** if it won't start, make it executable with
+  `chmod +x SynologyShareDownloader`.
 
-## Is it safe? Verifying your download
+## Verify your download
 
-The apps are built entirely in public GitHub Actions from the source in this
-repo, so you can see exactly what goes into them. They are **not code-signed**
-(that requires a paid certificate), which is why Windows SmartScreen and macOS
-Gatekeeper warn on first run — see the notes above to proceed.
+Releases are built in GitHub Actions from this repo's source, by
+[`.github/workflows/release.yml`](.github/workflows/release.yml). From v1.2.1
+on, each release carries a `SHA256SUMS.txt` with the SHA-256 of each archive.
+Compare your download with it (use the version you downloaded):
 
-Every release includes trust signals you can check:
+```powershell
+Get-FileHash .\SynologyShareDownloader-v1.2.1-win64.zip -Algorithm SHA256
+```
 
-- **`SHA256SUMS.txt`** — verify the file wasn't tampered with. On Windows:
-  ```powershell
-  Get-FileHash .\SynologyShareDownloader.exe -Algorithm SHA256
-  ```
-  and compare to the matching line in `SHA256SUMS.txt`.
-- **Build-provenance attestation** — cryptographic proof each binary was built
-  by this repo's release workflow (not by someone else). Verify with the GitHub
-  CLI:
-  ```bash
-  gh attestation verify SynologyShareDownloader.exe \
-    --repo shawnrancatore/synology-share-downloader
-  ```
+```sh
+shasum -a 256 SynologyShareDownloader-v1.2.1-macos-arm64.zip     # macOS
+sha256sum SynologyShareDownloader-v1.2.1-linux-x86_64.tar.gz     # Linux
+```
 
-Want the first-run prompt gone entirely? That needs Authenticode code signing
-(e.g. an OV/EV certificate or [Azure Trusted Signing][ats]). The release workflow
-is structured so a signing step can be dropped in — contributions welcome.
+The release workflow also records a build-provenance attestation for the
+archives: signed proof that they were built by that workflow from this repo. A
+failure in that step does not stop a release, so a release can lack one. v1.2.1
+has one. Check it with the GitHub CLI:
+
+```sh
+gh attestation verify SynologyShareDownloader-v1.2.1-linux-x86_64.tar.gz \
+  --repo shawnrancatore/synology-share-downloader
+```
+
+**How to tell it worked:** the hash matches the line for your file in
+`SHA256SUMS.txt`, and the `gh` command prints `✓ Verification succeeded!` with
+`Build workflow:. .github/workflows/release.yml@refs/tags/v1.2.1`.
+
+On Windows, removing the first-run prompt needs Authenticode code signing, such
+as an OV or EV certificate or [Azure Trusted Signing][ats]. A signing step
+could be added to the release workflow; contributions are welcome.
 
 [ats]: https://learn.microsoft.com/azure/trusted-signing/
 
-## How it works
+## Connections and certificates
 
-The `gofile.me` link is a QuickConnect redirector. The app:
+The app looks the NAS up with QuickConnect's coordinator
+(`global.quickconnect.to`, then `global.quickconnect.cn`) over verified HTTPS.
+It then tries the addresses the coordinator reports, in this order, and uses
+the first that answers:
 
-1. Resolves the QuickConnect id to the NAS's reachable address.
-2. Logs in to the share with its password.
-3. Lists folders/files via Synology's `FolderSharing` WebAPI.
-4. Downloads each file with HTTP Range requests (which is what makes resuming
-   possible).
+| Order | Address | Certificate |
+|---|---|---|
+| 1 | the NAS's QuickConnect name, on its external port | verified |
+| 2 | its public IP address, on its external port | not verified |
+| 3 | its DDNS name, on its HTTPS port, then on its external port | not verified |
+| 4 | its QuickConnect LAN names, on its HTTPS port | verified |
+| 5 | its local IP addresses, on its HTTPS port | not verified |
 
-See [`synology_share_downloader/client.py`](synology_share_downloader/client.py)
-— it's usable as a standalone library for scripting, too.
+The HTTPS port is 5001 unless the coordinator reports another. The unverified
+addresses typically carry the NAS's own self-signed certificate, which the app
+cannot check. Connecting to one logs:
 
-### Certificates
+```text
+Warning: certificate not verified for <host>. The app cannot confirm this is your NAS.
+```
 
-The QuickConnect lookup and the NAS's QuickConnect name use verified HTTPS. If
-that name can't be reached, the app falls back to the NAS's public IP, DDNS
-name and LAN addresses without verifying their certificate, because they
-typically carry the NAS's self-signed one. It logs
-`certificate not verified for <host>` and asks before it sends the share
-password over that connection. See
-[docs/USAGE.md](docs/USAGE.md#if-the-app-asks-about-a-certificate).
+Before it sends the share password over that connection, the app asks
+**Send the share password over this connection?** **No** stops, and the
+password is not sent. **Yes** carries on, and the app doesn't ask again for that
+host until you restart it. An unverified connection doesn't prove who is at the
+other end: someone in between could read the password and the files.
+
+In your own scripts, pass `SynoShareClient` a `confirm_unverified(host)`
+callback to make the same choice. Without one, the client logs the warning and
+logs in.
 
 ## Build from source
 
-Requirements: **Python 3.9+** (Windows, macOS, or Linux). PyInstaller builds for
-the OS it runs on, so build on each platform you want to ship.
+PyInstaller builds for the OS it runs on, so build on each platform you want to
+ship. With Python 3.9 or later:
 
-```bash
+```sh
 pip install -r requirements.txt pyinstaller
 python build.py --zip
 ```
 
-Output lands in `dist/` — the portable app plus an archive for the current OS
-(`…-win64.zip`, `…-macos-*.zip` containing the `.app`, or `…-linux-*.tar.gz`).
-
-To run from source without building:
-
-```bash
-pip install -r requirements.txt
-python app.py            # or:  python -m synology_share_downloader
-```
-
-Releases are built automatically by GitHub Actions when a `v*` tag is pushed
-(see [`.github/workflows/release.yml`](.github/workflows/release.yml)).
+The app and its archive land in `dist/`: `…-win64.zip`, `…-macos-<arch>.zip`
+containing the `.app`, or `…-linux-<arch>.tar.gz`. A release build runs in
+GitHub Actions when a `v*` tag is pushed.
 
 ## Contributing
 
-Contributions are very welcome — this project is meant to be a single place the
-community rallies around rather than fragmenting into forks. Please:
+Contributions are welcome. This project is meant to be one place the community
+works on together, rather than a scatter of forks. Please:
 
 1. Read [CONTRIBUTING.md](CONTRIBUTING.md) and the
    [Code of Conduct](CODE_OF_CONDUCT.md).
 2. Open an [issue](https://github.com/shawnrancatore/synology-share-downloader/issues)
-   to discuss a bug or feature before large changes.
+   to discuss a bug or feature before large changes. Never paste a share link
+   or its password into an issue.
 3. Fork, branch, and open a pull request. Keep PRs focused, run the tests
-   (`pytest`) and linter (`ruff check .`), and describe the change clearly.
+   (`pytest`) and the linter (`ruff check .`), and describe the change.
 
-Good first contributions: macOS/Linux release builds, localization, a
-drag-and-drop target for share links, an in-app update check, or code-signing
-the Windows build.
+Good first contributions: localization, a drag-and-drop target for share links,
+an in-app update check, or code-signing the Windows build.
 
 ## License
 
-Licensed under the **Apache License, Version 2.0** — see [LICENSE](LICENSE) and
-[NOTICE](NOTICE). You're free to use, modify, and redistribute it, including in
-commercial settings, provided you keep the notices.
+Licensed under the **Apache License, Version 2.0**: see [LICENSE](LICENSE) and
+[NOTICE](NOTICE). You can use, modify and redistribute it, including
+commercially, as long as you keep the notices.
 
-© 2026 **Dynamo Foundry LLC** — *a Software Company.*
+© 2026 **Dynamo Foundry LLC**, a Software Company.
 
 *Not affiliated with Synology Inc. "Synology" and "QuickConnect" are trademarks
 of Synology Inc., referenced here only to describe interoperability.*
+
+## The full guide
+
+From share link to finished download, with the reasoning behind each limit:
+**[bricoleur.ai/projects/synology-share-downloader](https://bricoleur.ai/projects/synology-share-downloader)**.
+
+<!-- bricoleur:footer -->
+<!-- /bricoleur:footer -->

@@ -173,8 +173,8 @@ is expected — see the first-run steps above to proceed. If you'd like to be
 extra careful, releases from v1.2.1 on ship a `SHA256SUMS.txt` you can check
 the downloaded archive against. The release workflow also tries to record a
 build-provenance attestation for each archive, but a failed attempt doesn't
-stop a release, so check that one exists (see the README's "Is it safe?"
-section).
+stop a release, so check that one exists (see the README's
+[Verify your download](../README.md#verify-your-download) section).
 
 **Can I use it on macOS or Linux?**
 Yes — the Releases page has builds for Windows, macOS on Apple Silicon, and

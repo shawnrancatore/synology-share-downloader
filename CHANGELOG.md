@@ -42,6 +42,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - The docs match the builds: zip and tar.gz archives (no bare `.exe`), macOS
   on Apple Silicon only, creation dates set on Windows only, completeness
   checked by size only, and direct connections only (no QuickConnect relay).
+- The README follows the bricoleur.ai layout, with a "What it deliberately
+  does not do" section and a link to the full guide. Its verification commands
+  now name the archives: `SHA256SUMS.txt` and the attestation cover the
+  archives, not the `.exe` inside. The old screenshot, which showed an earlier
+  version, is replaced by a diagram.
 
 ## [1.2.1] — 2026-07-08
 
