@@ -73,8 +73,8 @@ def safe_local_path(dest, remote_path, remote_base):
 
     remote_path must lie under remote_base (Synology paths use "/", for
     example "/share/photos/a.jpg" under "/share"). The part below remote_base
-    is mirrored below dest. The result must also resolve inside dest after
-    following any links that already exist on disk.
+    is mirrored below dest. The result, and its .part file, must also resolve
+    inside dest after following any symbolic links that already exist on disk.
     """
     prefix = remote_base.rstrip("/") + "/"
     if not remote_path.startswith(prefix):
@@ -87,9 +87,9 @@ def safe_local_path(dest, remote_path, remote_base):
     local = os.path.join(dest, *parts)
     root = os.path.realpath(dest)
     if not _inside(os.path.realpath(local), root):
-        raise UnsafePathError("it leads outside the destination folder through a link")
+        raise UnsafePathError("it leads outside the destination folder through a symbolic link")
     if not _inside(os.path.realpath(local + ".part"), root):
-        raise UnsafePathError("its .part file is a link that leads outside the destination folder")
+        raise UnsafePathError("its .part file is a symbolic link that leads outside the destination folder")
     return local
 
 

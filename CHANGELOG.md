@@ -14,15 +14,20 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   if it:
   - has a `.`, `..` or empty part, a backslash, a `:`, a control character,
     or one of `< > " | ? *`;
+  - ends with a dot or a space;
   - is a Windows device name, such as `CON`, `NUL` or `COM1.txt`;
   - is listed outside the folder being downloaded;
-  - would resolve outside the destination through an existing link, or its
-    `.part` file would.
+  - would resolve outside the destination through an existing symbolic link,
+    or its `.part` file would.
 
   The same rules apply on every OS. A skipped folder is not listed at all.
-- **The app never writes through a link.** If the file to write, or its
-  `.part` file, is a link, the file is skipped and logged. The link's target
-  is not written, re-stamped or replaced.
+- **The app never writes through a symbolic link.** If the file to write, or
+  its `.part` file, is a symbolic link, the file is skipped and logged. The
+  link's target is not written, re-stamped or replaced. A `.part` file that has
+  another hard link is skipped as well, before a byte of it changes. The final
+  line counts both as `link(s) skipped`. A symbolic link to a folder is
+  followed only when it leads inside the destination. A local user who can
+  rewrite folders inside the destination during a download is out of scope.
 - **Unverified connections are visible, and the app asks first.** The
   QuickConnect lookup and the NAS's QuickConnect name still use verified HTTPS.
   The fallback to the NAS's public IP, DDNS name and LAN addresses, which skips

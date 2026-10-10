@@ -147,16 +147,22 @@ The share listed a name that Windows, macOS or Linux can't use as a plain file
 name inside your *Save to* folder. Such a name could put a file outside the
 folder, open a device, write to a hidden file stream, or be refused outright.
 That covers a name with a `..` part, a backslash, a `:`, a control character or
-one of `< > " | ? *`, and a name Windows reserves for a device, such as `CON`,
-`NUL`, `COM1` or `aux.c`. The app skips such names on
-every system, even one that would allow them. It doesn't download the file,
+one of `< > " | ? *`, a name that ends with a dot or a space, and a name
+Windows reserves for a device, such as `CON`, `NUL`, `COM1` or `aux.c`. The app
+skips such names on every system, even one that would allow them. It doesn't
+download the file,
 and if it's a folder, doesn't look inside it. The rest of the download carries
-on. A link inside *Save to* that points to a folder somewhere else is treated
-the same way.
+on. A symbolic link inside *Save to* that points to a folder somewhere else is
+treated the same way.
 
-The app also never writes through a link. If the file it would write, or its
-`.part` file, is already a link, it skips that file and logs
-`Skipped '<path>': it is a link, …`.
+The app also never writes through a symbolic link. If the file it would write,
+or its `.part` file, is a symbolic link, it skips that file and logs
+`Skipped (symbolic link) '<path>': …`. If the `.part` file has another hard
+link, writing it would change a file somewhere else, so the app skips it and
+logs `Skipped (hard link) '<path>': …`. The final line counts both as
+`link(s) skipped`. A symbolic link to a folder is followed only when it leads
+inside *Save to*. A local user who can rewrite folders inside *Save to* during
+a download is out of scope.
 
 **It says it can't reach the server.**
 The app connects to the NAS directly, at the addresses QuickConnect reports for
