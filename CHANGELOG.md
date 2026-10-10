@@ -37,13 +37,17 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   callback for the same purpose.
 - urllib3's `InsecureRequestWarning` is no longer silenced for the whole
   process; it is silenced only for the unverified addresses the app tries.
-- **The log keeps the share link secret.** It shows only the link's scheme,
-  host and first path segment, and replaces the rest, which holds the share's
-  id, with `…` (`http://gofile.me/AbCdE/…`). That holds however the link was
-  pasted: percent-encoded, with backslashes, or with extra segments. Text that
-  is not a plain host and path is logged as `…`. Error messages go through the
-  same redaction, so they no longer quote the id from the link or from a
-  request URL.
+- **The log shows only the start of a pasted share link.** It shows only the
+  link's scheme, host and first path segment, and replaces the rest, where a
+  share link holds its id, with `…` (`http://gofile.me/AbCdE/…`). A
+  percent-encoded link, or one written with backslashes, is decoded first. A
+  paste the app cannot read as a plain link, such as a bare id, a link with
+  other text around it or a link with a line break in it, is logged as `…`.
+  The app's own error messages are shown as written: they quote neither the
+  link nor the id, and those are all the app replaces. If an error message
+  from the network library quotes the pasted link, the app replaces it with
+  the short form above, and it replaces the id it read from the link with
+  `…`. An id shorter than six characters can be left in.
 - The bug-report form warns not to paste share links or passwords, and says
   what the log does show.
 
