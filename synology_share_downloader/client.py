@@ -381,7 +381,9 @@ class SynoShareClient:
 
         Without O_NOFOLLOW, as on Windows, open() follows a symbolic link put
         at the path since the last check. So the path is checked once more
-        after the open, before a byte of the file changes.
+        after the open, before a byte of the file changes. From then on the
+        bytes go to the open file, whatever is put at the path. What is left
+        is a link that is there for the open and gone again by this check.
         """
         try:
             fd = os.open(part, _PART_FLAGS | (os.O_APPEND if resume else 0), 0o666)
