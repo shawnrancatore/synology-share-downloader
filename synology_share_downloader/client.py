@@ -37,9 +37,11 @@ verified for <host>", and login() asks confirm_unverified(host), when given,
 before the share password is sent.
 """
 
+import errno
 import json
 import os
 import re
+import stat
 import time
 import urllib.parse
 import warnings
@@ -57,12 +59,32 @@ COORDINATORS = [
 # QuickConnect "service id" used by the gofile file-sharing frontend.
 FILE_SHARING_ID = "file_sharing_https"
 
-# Opening a .part file never follows a link, where the OS can refuse one.
+# Opening a .part file never follows a symbolic link, where the OS can refuse
+# one, and never truncates: a hard link has to be noticed before a byte changes.
 _PART_FLAGS = os.O_WRONLY | os.O_CREAT | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_BINARY", 0)
+# What open() reports for a symbolic link under O_NOFOLLOW (EMLINK on some BSDs).
+_LINK_ERRNOS = (errno.ELOOP, errno.EMLINK)
+
+_SKIP_SYMLINK = "Skipped (symbolic link) %r: the app never writes through a symbolic link or replaces one."
+_SKIP_HARD_LINK = ("Skipped (hard link) %r: it has another hard link, "
+                   "and the app does not write into a file that does.")
 
 
 class ShareError(Exception):
     """A user-meaningful error (bad password, unreachable, etc.)."""
+
+
+class _Skipped:
+    """What download_file() returns for a file it refused to write. It is false."""
+
+    def __bool__(self):
+        return False
+
+    def __repr__(self):
+        return "SKIPPED"
+
+
+SKIPPED = _Skipped()
 
 
 # Synology WebAPI error codes we translate to friendly text.
@@ -120,7 +142,17 @@ def _set_windows_ctime(path, ctime_epoch):
 
 def apply_file_times(path, mtime=None, crtime=None):
     """Stamp the local file with the share's modified (and, on Windows,
-    created) timestamps so downloaded files keep their original ages."""
+    created) timestamps so downloaded files keep their original ages.
+
+    Nothing is stamped through a symbolic link, or onto a file that has
+    another hard link: either would change a file somewhere else.
+    """
+    try:
+        st = os.lstat(path)
+    except OSError:
+        return
+    if stat.S_ISLNK(st.st_mode) or (stat.S_ISREG(st.st_mode) and st.st_nlink > 1):
+        return
     if mtime:
         try:
             os.utime(path, (mtime, mtime))
@@ -303,13 +335,44 @@ class SynoShareClient:
         return hide_share_link(_hide(text, self.link_id), self.share_url)
 
     def _refuse_links(self, local_path, part):
-        """Log and return True if local_path or its .part file is a link."""
+        """Log and return True if a link means this file must be skipped.
+
+        A symbolic link at local_path or at its .part file would be written
+        through or replaced. A .part file with another hard link shares its
+        contents with a file somewhere else.
+        """
         for path in (local_path, part):
             if os.path.islink(path):
-                self._log("Skipped %r: it is a link, and the app never writes through "
-                          "a link or replaces one." % path)
+                self._log(_SKIP_SYMLINK % path)
                 return True
-        return False
+        try:
+            shared = os.lstat(part).st_nlink > 1
+        except OSError:
+            shared = False
+        if shared:
+            self._log(_SKIP_HARD_LINK % part)
+        return shared
+
+    def _open_part(self, part, resume):
+        """Open the .part file for writing, or log why not and return None."""
+        try:
+            fd = os.open(part, _PART_FLAGS | (os.O_APPEND if resume else 0), 0o666)
+        except OSError as e:
+            if e.errno in _LINK_ERRNOS:
+                self._log(_SKIP_SYMLINK % part)
+                return None
+            raise
+        try:
+            if os.fstat(fd).st_nlink <= 1:
+                if not resume:
+                    os.ftruncate(fd, 0)
+                return os.fdopen(fd, "ab" if resume else "wb")
+        except BaseException:
+            os.close(fd)
+            raise
+        os.close(fd)
+        self._log(_SKIP_HARD_LINK % part)
+        return None
 
     def _entry_url(self):
         return self.base + "/sharing/webapi/entry.cgi"
@@ -525,16 +588,19 @@ class SynoShareClient:
         """Download one file to local_path, resuming a .part file if present.
 
         progress(bytes_done, total_or_None) is called periodically.
-        stop() -> True aborts. Returns True if completed, False if stopped or
-        skipped. mtime/crtime (Unix epoch) are stamped onto the finished file
+        stop() -> True aborts. Returns True if completed, False if stopped,
+        and SKIPPED (which is also false) if the file was refused because of
+        a link. mtime/crtime (Unix epoch) are stamped onto the finished file
         so it keeps its original age.
 
-        If local_path or its .part file is a link, the file is skipped (and
-        logged): the client never writes through a link or replaces one.
+        The file is skipped, with a "Skipped (...)" log line, if local_path
+        or its .part file is a symbolic link, or if the .part file has
+        another hard link. This is checked before each attempt, again on the
+        open file, and before the finished file is moved into place.
         """
         part = local_path + ".part"
         if self._refuse_links(local_path, part):
-            return False
+            return SKIPPED
         if expected_size is not None and os.path.exists(local_path) and \
                 os.path.getsize(local_path) == expected_size:
             apply_file_times(local_path, mtime, crtime)
@@ -547,6 +613,8 @@ class SynoShareClient:
         attempt = 0
         while True:
             attempt += 1
+            if attempt > 1 and self._refuse_links(local_path, part):
+                return SKIPPED
             have = os.path.getsize(part) if os.path.exists(part) else 0
             headers = {}
             if have:
@@ -562,7 +630,7 @@ class SynoShareClient:
                 if r.status_code == 416:  # range not satisfiable -> already complete
                     r.close()
                     if self._refuse_links(local_path, part):
-                        return False
+                        return SKIPPED
                     if os.path.exists(part):
                         os.replace(part, local_path)
                     apply_file_times(local_path, mtime, crtime)
@@ -593,9 +661,12 @@ class SynoShareClient:
                 if expected_size is not None:
                     total = expected_size
 
-                flags = _PART_FLAGS | (os.O_APPEND if have else os.O_TRUNC)
+                fh = self._open_part(part, bool(have))
+                if fh is None:
+                    r.close()
+                    return SKIPPED
                 done = have
-                with os.fdopen(os.open(part, flags, 0o666), "ab" if have else "wb") as fh:
+                with fh:
                     for chunk in r.iter_content(chunk_size=1024 * 256):
                         if stop and stop():
                             r.close()
@@ -612,7 +683,7 @@ class SynoShareClient:
                     raise IOError("size mismatch: got %d, expected %d" %
                                   (final_size, expected_size))
                 if self._refuse_links(local_path, part):
-                    return False
+                    return SKIPPED
                 os.replace(part, local_path)
                 apply_file_times(local_path, mtime, crtime)
                 return True
@@ -620,6 +691,9 @@ class SynoShareClient:
             except ShareError:
                 raise
             except Exception as e:
+                if isinstance(e, OSError) and e.errno in _LINK_ERRNOS:
+                    self._log(_SKIP_SYMLINK % part)
+                    return SKIPPED
                 if stop and stop():
                     return False
                 if attempt >= retries:

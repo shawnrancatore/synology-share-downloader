@@ -44,6 +44,7 @@ class FakeNAS:
         self.files = files
         self.password = password
         self.calls = []
+        self.on_download = None  # called when a download request arrives; may raise
 
     def _entry(self, name, path, isdir):
         size = 0 if isdir else len(self.files.get(path, b""))
@@ -66,6 +67,8 @@ class FakeNAS:
             return FakeResponse(body={"success": True,
                                       "data": {"files": entries, "total": len(entries)}})
         if api == "SYNO.FolderSharing.Download":
+            if self.on_download:
+                self.on_download()
             path = json.loads(args["path"])[0]
             content = self.files[path]
             status = 200
