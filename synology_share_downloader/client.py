@@ -82,9 +82,10 @@ def _api_error(code):
 def _quiet_insecure_warning(host):
     """Silence urllib3's InsecureRequestWarning for this one host only.
 
-    The client reports an unverified connection itself, in its log, so
-    urllib3's warning for that host would repeat it. Warnings about every
-    other host are left as they are.
+    resolve() calls this for each unverified address it tries. It logs the
+    one it connects to ("certificate not verified for <host>"), so urllib3's
+    warning would repeat it. Warnings about every other host are left as
+    they are.
     """
     warnings.filterwarnings(
         "ignore",
@@ -292,7 +293,7 @@ class SynoShareClient:
         for host, port, verify, label in candidates:
             base = "https://%s:%s" % (host, port)
             if not verify:
-                _quiet_insecure_warning(host)  # the log line below says it instead
+                _quiet_insecure_warning(host)  # if used, the log line below says so
             if self._probe(base, verify):
                 self.base = base
                 self.host = host

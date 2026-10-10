@@ -9,12 +9,20 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ### Security
 - **Downloads stay inside the destination folder.** File and folder names come
   from the server, and a hostile share could list names such as `../x`,
-  `..\x` or `C:x` to write outside the folder you chose. Every local path is
+  `..\x` or `D:x` to write outside the folder you chose. Every local path is
   now checked first. A name is skipped, with a `Skipped …` line in the log,
-  if it has a `.` or `..` part, an empty part, a backslash, a drive letter or
-  a NUL character, if it is listed outside the folder being downloaded, or if
-  it would resolve outside the destination through an existing link. A skipped
-  folder is not listed at all.
+  if it:
+  - has a `.`, `..` or empty part, a backslash, a `:`, a control character,
+    or one of `< > " | ? *`;
+  - is a Windows device name, such as `CON`, `NUL` or `COM1.txt`;
+  - is listed outside the folder being downloaded;
+  - would resolve outside the destination through an existing link, or its
+    `.part` file would.
+
+  The same rules apply on every OS. A skipped folder is not listed at all.
+- **The app never writes through a link.** If the file to write, or its
+  `.part` file, is a link, the file is skipped and logged. The link's target
+  is not written, re-stamped or replaced.
 - **Unverified connections are visible, and the app asks first.** The
   QuickConnect lookup and the NAS's QuickConnect name still use verified HTTPS.
   The fallback to the NAS's public IP, DDNS name and LAN addresses, which skips
@@ -23,7 +31,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   address, per run). `SynoShareClient` takes a `confirm_unverified(host)`
   callback for the same purpose.
 - urllib3's `InsecureRequestWarning` is no longer silenced for the whole
-  process; it is silenced only for the hosts the app reports itself.
+  process; it is silenced only for the unverified addresses the app tries.
 - **The log keeps the share link secret.** It shows the link with its last
   segment, the share's id, replaced by `…` (`http://gofile.me/AbCdE/…`), and
   download errors no longer quote the id from the request URL.
