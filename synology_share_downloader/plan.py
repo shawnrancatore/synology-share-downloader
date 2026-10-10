@@ -70,8 +70,11 @@ def safe_local_path(dest, remote_path, remote_base):
         if problem:
             raise UnsafePathError(problem)
     local = os.path.join(dest, *parts)
-    if not _inside(os.path.realpath(local), os.path.realpath(dest)):
+    root = os.path.realpath(dest)
+    if not _inside(os.path.realpath(local), root):
         raise UnsafePathError("it leads outside the destination folder through a link")
+    if not _inside(os.path.realpath(local + ".part"), root):
+        raise UnsafePathError("its .part file is a link that leads outside the destination folder")
     return local
 
 

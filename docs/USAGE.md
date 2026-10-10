@@ -149,6 +149,10 @@ doesn't download it, and if it's a folder, doesn't look inside it. The rest of
 the download carries on. A link inside *Save to* that points to a folder
 somewhere else is treated the same way.
 
+The app also never writes through a link. If the file it would write, or its
+`.part` file, is already a link, it skips that file and logs
+`Skipped '<path>': it is a link, …`.
+
 **It says it can't reach the server.**
 The app connects to the NAS directly, at the addresses QuickConnect reports for
 it: its QuickConnect name, public IP address, DDNS name and local addresses. It

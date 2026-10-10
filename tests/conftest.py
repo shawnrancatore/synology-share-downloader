@@ -50,7 +50,7 @@ class FakeNAS:
         return {"name": name, "path": path, "isdir": isdir,
                 "additional": {"size": size, "time": {"mtime": 1000, "crtime": 900}}}
 
-    def handle(self, method, url, args, verify):
+    def handle(self, method, url, args, verify, headers=None):
         self.calls.append((method, url, args.get("api"), verify))
         api = args.get("api")
         if api == "SYNO.Core.Sharing.Login":
@@ -68,7 +68,11 @@ class FakeNAS:
         if api == "SYNO.FolderSharing.Download":
             path = json.loads(args["path"])[0]
             content = self.files[path]
-            return FakeResponse(content=content, headers={
+            status = 200
+            rng = (headers or {}).get("Range", "")
+            if rng.startswith("bytes=") and rng.endswith("-"):
+                content, status = content[int(rng[6:-1]):], 206
+            return FakeResponse(status=status, content=content, headers={
                 "Content-Type": "application/octet-stream",
                 "Content-Length": str(len(content))})
         return FakeResponse(status=404, body={"success": False})
@@ -80,10 +84,10 @@ class FakeSession:
         self.headers = {}
 
     def post(self, url, data=None, headers=None, verify=True, timeout=None, stream=False):
-        return self.nas.handle("POST", url, data or {}, verify)
+        return self.nas.handle("POST", url, data or {}, verify, headers)
 
     def get(self, url, params=None, headers=None, verify=True, timeout=None, stream=False):
-        return self.nas.handle("GET", url, params or {}, verify)
+        return self.nas.handle("GET", url, params or {}, verify, headers)
 
 
 @pytest.fixture

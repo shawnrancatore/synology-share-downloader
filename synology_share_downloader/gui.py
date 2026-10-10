@@ -360,7 +360,8 @@ class App:
                     return
                 name = os.path.basename(lpath)
                 try:
-                    if os.path.exists(lpath) and size and os.path.getsize(lpath) == size:
+                    if not os.path.islink(lpath) and os.path.exists(lpath) and size \
+                            and os.path.getsize(lpath) == size:
                         apply_file_times(lpath, mtime, crtime)
                         with lock:
                             st["bytes"] += size

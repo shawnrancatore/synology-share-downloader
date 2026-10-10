@@ -57,6 +57,9 @@ COORDINATORS = [
 # QuickConnect "service id" used by the gofile file-sharing frontend.
 FILE_SHARING_ID = "file_sharing_https"
 
+# Opening a .part file never follows a link, where the OS can refuse one.
+_PART_FLAGS = os.O_WRONLY | os.O_CREAT | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_BINARY", 0)
+
 
 class ShareError(Exception):
     """A user-meaningful error (bad password, unreachable, etc.)."""
@@ -224,6 +227,15 @@ class SynoShareClient:
         for form in (urllib.parse.quote_plus(quoted), quoted):
             text = text.replace(form, "…")
         return re.sub(r"(?<![A-Za-z0-9])%s(?![A-Za-z0-9])" % re.escape(self.link_id), "…", text)
+
+    def _refuse_links(self, local_path, part):
+        """Log and return True if local_path or its .part file is a link."""
+        for path in (local_path, part):
+            if os.path.islink(path):
+                self._log("Skipped %r: it is a link, and the app never writes through "
+                          "a link or replaces one." % path)
+                return True
+        return False
 
     def _entry_url(self):
         return self.base + "/sharing/webapi/entry.cgi"
@@ -439,10 +451,16 @@ class SynoShareClient:
         """Download one file to local_path, resuming a .part file if present.
 
         progress(bytes_done, total_or_None) is called periodically.
-        stop() -> True aborts. Returns True if completed, False if stopped.
-        mtime/crtime (Unix epoch) are stamped onto the finished file so it
-        keeps its original age.
+        stop() -> True aborts. Returns True if completed, False if stopped or
+        skipped. mtime/crtime (Unix epoch) are stamped onto the finished file
+        so it keeps its original age.
+
+        If local_path or its .part file is a link, the file is skipped (and
+        logged): the client never writes through a link or replaces one.
         """
+        part = local_path + ".part"
+        if self._refuse_links(local_path, part):
+            return False
         if expected_size is not None and os.path.exists(local_path) and \
                 os.path.getsize(local_path) == expected_size:
             apply_file_times(local_path, mtime, crtime)
@@ -451,7 +469,6 @@ class SynoShareClient:
             return True
 
         os.makedirs(os.path.dirname(local_path) or ".", exist_ok=True)
-        part = local_path + ".part"
 
         attempt = 0
         while True:
@@ -470,6 +487,8 @@ class SynoShareClient:
 
                 if r.status_code == 416:  # range not satisfiable -> already complete
                     r.close()
+                    if self._refuse_links(local_path, part):
+                        return False
                     if os.path.exists(part):
                         os.replace(part, local_path)
                     apply_file_times(local_path, mtime, crtime)
@@ -500,9 +519,9 @@ class SynoShareClient:
                 if expected_size is not None:
                     total = expected_size
 
-                mode = "ab" if have else "wb"
+                flags = _PART_FLAGS | (os.O_APPEND if have else os.O_TRUNC)
                 done = have
-                with open(part, mode) as fh:
+                with os.fdopen(os.open(part, flags, 0o666), "ab" if have else "wb") as fh:
                     for chunk in r.iter_content(chunk_size=1024 * 256):
                         if stop and stop():
                             r.close()
@@ -518,6 +537,8 @@ class SynoShareClient:
                 if expected_size is not None and final_size != expected_size:
                     raise IOError("size mismatch: got %d, expected %d" %
                                   (final_size, expected_size))
+                if self._refuse_links(local_path, part):
+                    return False
                 os.replace(part, local_path)
                 apply_file_times(local_path, mtime, crtime)
                 return True
