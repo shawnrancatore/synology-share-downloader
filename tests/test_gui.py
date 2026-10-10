@@ -107,7 +107,8 @@ def test_download_worker_counts_a_hard_linked_part_file_as_skipped(tmp_path, fak
     assert target.read_bytes() == b"keep" and os.stat(str(target)).st_mtime == OLD
     assert (dest / "share" / "b.txt").read_bytes() == b"more"
     logged = _logged(app)
-    assert any(m.startswith("Skipped (hard link) ") for m in logged)
+    assert any(m.startswith("Skipped (hard link) ") and m.endswith("delete the .part file to download it again.")
+               for m in logged)
     assert logged[-1].startswith("Done. 1 file(s) downloaded; 1 link(s) skipped")
 
 

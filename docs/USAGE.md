@@ -159,7 +159,8 @@ The app also never writes through a symbolic link. If the file it would write,
 or its `.part` file, is a symbolic link, it skips that file and logs
 `Skipped (symbolic link) '<path>': …`. If the `.part` file has another hard
 link, writing it would change a file somewhere else, so the app skips it and
-logs `Skipped (hard link) '<path>': …`. The final line counts both as
+logs `Skipped (hard link) '<path>': …`. That line ends with what to do:
+`delete the .part file to download it again.` The final line counts both as
 `link(s) skipped`. A symbolic link to a folder is followed only when it leads
 inside *Save to*. A local user who can rewrite folders inside *Save to* during
 a download is out of scope.

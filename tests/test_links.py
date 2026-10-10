@@ -38,6 +38,12 @@ def _untouched(target, content=b"keep"):
     return target.read_bytes() == content and os.stat(str(target)).st_mtime == OLD
 
 
+def _says_how_to_recover(logs):
+    """True if the hard-link skip line is there and ends with the way out."""
+    return any(m.startswith("Skipped (hard link) ") and m.endswith("delete the .part file to download it again.")
+               for m in logs)
+
+
 def _no_sleep(monkeypatch):
     def fail(_seconds):
         raise AssertionError("the download waited to retry")
@@ -190,7 +196,21 @@ def test_a_part_file_with_another_hard_link_is_skipped(dirs, fake_nas, connect):
     assert _downloads(nas) == []
     assert not (dest / "a.txt").exists()
     assert (dest / "a.txt.part").exists()  # nothing is removed either
-    assert any(m.startswith("Skipped (hard link) ") for m in logs)
+    assert _says_how_to_recover(logs)
+
+
+def test_deleting_the_part_file_lets_the_download_run_again(dirs, fake_nas, connect):
+    dest, outside = dirs
+    target = _outside_file(outside)
+    _hard_link(target, dest / "a.txt.part")
+    client = connect(_nas(fake_nas))
+    assert client.download_file("/share/a.txt", str(dest / "a.txt"), 4) is SKIPPED
+
+    os.remove(str(dest / "a.txt.part"))  # what the skip line says to do
+
+    assert client.download_file("/share/a.txt", str(dest / "a.txt"), 4) is True
+    assert (dest / "a.txt").read_bytes() == b"data"
+    assert _untouched(target)
 
 
 def test_a_hard_link_that_appears_during_the_request_is_skipped(dirs, fake_nas, connect, monkeypatch):
@@ -205,7 +225,7 @@ def test_a_hard_link_that_appears_during_the_request_is_skipped(dirs, fake_nas, 
 
     assert ok is SKIPPED
     assert _untouched(target)  # opened, but not truncated or written
-    assert any(m.startswith("Skipped (hard link) ") for m in logs)
+    assert _says_how_to_recover(logs)
 
 
 def test_a_complete_file_with_another_hard_link_is_not_restamped(dirs, fake_nas, connect):

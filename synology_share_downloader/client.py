@@ -66,8 +66,8 @@ _PART_FLAGS = os.O_WRONLY | os.O_CREAT | getattr(os, "O_NOFOLLOW", 0) | getattr(
 _LINK_ERRNOS = (errno.ELOOP, errno.EMLINK)
 
 _SKIP_SYMLINK = "Skipped (symbolic link) %r: the app never writes through a symbolic link or replaces one."
-_SKIP_HARD_LINK = ("Skipped (hard link) %r: it has another hard link, "
-                   "and the app does not write into a file that does.")
+_SKIP_HARD_LINK = ("Skipped (hard link) %r: it has another hard link, and the app does not write "
+                   "into a file that does; delete the .part file to download it again.")
 
 
 class ShareError(Exception):
