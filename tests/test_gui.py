@@ -4,12 +4,32 @@
 import os
 import queue
 import threading
+import types
 
 import pytest
 
-gui = pytest.importorskip("synology_share_downloader.gui")  # needs tkinter
+pytest.importorskip("tkinter")  # no Tk on this Python: skip. Any other import error fails.
+
+from synology_share_downloader import gui  # noqa: E402
 
 OLD = 1_000_000_000
+
+# Ways a user might paste a link; none may reach the log with the share's id.
+PASTED_LINKS = [
+    "http://gofile.me/AbCdE/ExAmPlE123",
+    "gofile.me/AbCdE/ExAmPlE123",
+    "https://acme.quickconnect.to/sharing/ExAmPlE123",
+    "http://gofile.me/AbCdE/ExAmPlE123/;x",
+    "http://gofile.me/AbCdE/ExAmPlE123/x",
+    "gofile.me\\AbCdE\\ExAmPlE123",
+    "http%3A%2F%2Fgofile.me%2FAbCdE%2FExAmPlE123",
+    "gofile.me%2FAbCdE%2FExAmPlE123",
+    "gofile.me%5CAbCdE%5CExAmPlE123",
+    "https://192.0.2.10:5001/sharing/ExAmPlE123/index.html",
+    "gofile.me/ExAmPlE123",
+    "http://[ExAmPlE123]/AbCdE/x",
+    "ExAmPlE123",
+]
 
 
 def _bare_app(client=None):
@@ -91,3 +111,70 @@ def test_no_stops_the_login_and_the_next_connect_asks_again(fake_nas, connect):
     client.login()
     assert asked == [("ask_unverified", "nas.example.com")] * 2
     assert len([c for c in nas.calls if c[2] == "SYNO.Core.Sharing.Login"]) == 1
+
+
+# ---- connect: the log never shows the share's id ---------------------------
+
+class _Var:
+    def __init__(self, value):
+        self.value = value
+
+    def get(self):
+        return self.value
+
+
+class _Widget:
+    def configure(self, **_kw):
+        pass
+
+    def get_children(self):
+        return []
+
+
+class _InlineThread:
+    def __init__(self, target, daemon=None):
+        self.target = target
+
+    def start(self):
+        self.target()
+
+
+def _connect(monkeypatch, url, client_class):
+    """Run App.on_connect() for url with client_class; return everything it logged."""
+    monkeypatch.setattr(gui, "SynoShareClient", client_class)
+    monkeypatch.setattr(gui, "threading", types.SimpleNamespace(Thread=_InlineThread))
+    app = _bare_app()
+    app.downloading = False
+    app.nodes = {}
+    app.url_var, app.pw_var = _Var(url), _Var("pw")
+    app.connect_btn = app.download_btn = app.tree = _Widget()
+    shown = []
+    app._append_log = shown.append
+    app.on_connect()
+    while not app.q.empty():
+        shown.append(str(app.q.get_nowait()[1]))
+    return shown
+
+
+class _Unreachable(gui.SynoShareClient):
+    """A real client whose resolve() fails with an error that quotes the link."""
+
+    def resolve(self):
+        raise RuntimeError("no route to %s (_sharing_id=%%22%s%%22)" % (self.share_url, self.link_id))
+
+
+def _broken_client(url, *args, **kwargs):
+    raise ValueError("cannot read %r" % url)
+
+
+@pytest.mark.parametrize("url", PASTED_LINKS)
+@pytest.mark.parametrize("client_class", [_Unreachable, _broken_client])
+def test_connecting_never_logs_the_share_id(monkeypatch, url, client_class):
+    shown = _connect(monkeypatch, url, client_class)
+    assert any(line.startswith("Connecting to ") for line in shown)
+    assert not any("ExAmPlE123" in line for line in shown), shown
+
+
+def test_an_unexpected_error_still_says_what_went_wrong(monkeypatch):
+    shown = _connect(monkeypatch, "http://gofile.me/AbCdE/ExAmPlE123", _Unreachable)
+    assert any(line.startswith("Unexpected error: no route to ") for line in shown)

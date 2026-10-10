@@ -12,6 +12,7 @@ from synology_share_downloader.client import (
     ShareError,
     SynoShareClient,
     apply_file_times,
+    hide_share_link,
     parse_share_url,
     redact_share_url,
 )
@@ -51,7 +52,8 @@ def test_apply_file_times(tmp_path):
     assert abs(os.path.getmtime(str(p)) - when) < 2
 
 
-@pytest.mark.parametrize("url, logged", [
+# (what the user pasted, what the log may show). The id never appears.
+REDACTIONS = [
     ("http://gofile.me/AbCdE/ExAmPlE123", "http://gofile.me/AbCdE/\u2026"),
     ("gofile.me/AbCdE/ExAmPlE123", "gofile.me/AbCdE/\u2026"),
     ("  https://gofile.me/AbCdE/ExAmPlE123/  ", "https://gofile.me/AbCdE/\u2026"),
@@ -59,19 +61,66 @@ def test_apply_file_times(tmp_path):
     ("https://acme.quickconnect.to/sharing/ExAmPlE123", "https://acme.quickconnect.to/sharing/\u2026"),
     ("http://gofile.me/AbCdE/ExAmPlE123?x=ExAmPlE123#ExAmPlE123", "http://gofile.me/AbCdE/\u2026"),
     ("http://you@example.com/AbCdE/ExAmPlE123", "http://example.com/AbCdE/\u2026"),
-    ("http://[bad/ExAmPlE123", "\u2026"),
-    ("", ""),
-    # Path parameters and backslashes must not leave the id in the log.
+    # Path parameters and backslashes.
     ("http://gofile.me/AbCdE/ExAmPlE123/;x", "http://gofile.me/AbCdE/\u2026"),
     ("http://gofile.me/AbCdE/ExAmPlE123;x", "http://gofile.me/AbCdE/\u2026"),
     ("gofile.me\\AbCdE\\ExAmPlE123", "gofile.me/AbCdE/\u2026"),
     ("http://gofile.me\\AbCdE\\ExAmPlE123", "http://gofile.me/AbCdE/\u2026"),
     ("http://gofile.me/AbCdE\\ExAmPlE123", "http://gofile.me/AbCdE/\u2026"),
     ("http://gofile.me/AbCdE/ExAmPlE123\\", "http://gofile.me/AbCdE/\u2026"),
-])
-def test_redact_share_url_hides_the_last_segment(url, logged):
+    # Percent-encoded, once or more.
+    ("http%3A%2F%2Fgofile.me%2FAbCdE%2FExAmPlE123", "http://gofile.me/AbCdE/\u2026"),
+    ("gofile.me%2FAbCdE%2FExAmPlE123", "gofile.me/AbCdE/\u2026"),
+    ("gofile.me%5CAbCdE%5CExAmPlE123", "gofile.me/AbCdE/\u2026"),
+    ("http://gofile.me/AbCdE%5CExAmPlE123", "http://gofile.me/AbCdE/\u2026"),
+    ("gofile.me%255CAbCdE%255CExAmPlE123", "gofile.me/AbCdE/\u2026"),
+    ("gofile.me/AbCdE/%45xAmPlE123", "gofile.me/AbCdE/\u2026"),
+    ("gofile.me%2525252FAbCdE%2525252FExAmPlE123", "\u2026"),
+    # The id is not the last segment, or is the only one.
+    ("http://gofile.me/AbCdE/ExAmPlE123/x", "http://gofile.me/AbCdE/\u2026"),
+    ("https://192.0.2.10:5001/sharing/ExAmPlE123/index.html", "https://192.0.2.10:5001/sharing/\u2026"),
+    ("gofile.me/ExAmPlE123", "gofile.me/\u2026"),
+    ("gofile.me/ExAmPlE123/ExAmPlE123", "gofile.me/\u2026/\u2026"),
+    ("http://gofile.me/AbCdE;ExAmPlE123/x", "http://gofile.me/\u2026"),
+    ("http://gofile.me/AbCdE ExAmPlE123/x", "http://gofile.me/\u2026"),
+    # Not a plain host and path: nothing of it is shown.
+    ("ExAmPlE123", "\u2026"),
+    ("", "\u2026"),
+    ("http://[bad/ExAmPlE123", "\u2026"),
+    ("http://[ExAmPlE123]/AbCdE/x", "\u2026"),
+    ("http://gofile.me:ExAmPlE123/AbCdE/x", "\u2026"),
+    ("ftp://gofile.me/AbCdE/ExAmPlE123", "\u2026"),
+    ("Link: http://gofile.me/AbCdE/ExAmPlE123", "\u2026"),
+    # Nothing secret to hide.
+    ("http://gofile.me", "http://gofile.me"),
+]
+
+
+@pytest.mark.parametrize("url, logged", REDACTIONS)
+def test_redact_share_url_never_shows_the_share_id(url, logged):
     assert redact_share_url(url) == logged
     assert "ExAmPlE123" not in redact_share_url(url)
+
+
+@pytest.mark.parametrize("url", [u for u, _ in REDACTIONS])
+def test_a_link_that_does_not_parse_is_refused_without_quoting_it(url):
+    try:
+        parse_share_url(url)
+    except ShareError as e:
+        assert "ExAmPlE123" not in str(e)
+
+
+@pytest.mark.parametrize("url", [u for u, _ in REDACTIONS if "xAmPlE123" in u])
+def test_hide_share_link_cleans_text_that_quotes_the_link(url):
+    for text in ("cannot open %s" % url, "cannot open %r" % url,
+                 "bad id ExAmPlE123", "_sharing_id=%22ExAmPlE123%22"):
+        assert "ExAmPlE123" not in hide_share_link(text, url)
+
+
+def test_hide_share_link_keeps_the_rest_of_the_message():
+    url = "http://gofile.me/AbCdE/ExAmPlE123"
+    assert hide_share_link("Max retries exceeded for %s (host gofile.me)" % url, url) == (
+        "Max retries exceeded for http://gofile.me/AbCdE/\u2026 (host gofile.me)")
 
 
 def test_download_errors_do_not_log_the_link_id(tmp_path, monkeypatch, fake_nas, connect):
@@ -100,6 +149,6 @@ def test_scrubbing_a_short_link_id_leaves_other_words_alone():
     client = SynoShareClient("http://gofile.me/AbCdE/x", "pw")
     text = ("HTTPSConnectionPool(host='nas.example.com', port=5001): Max retries exceeded with url: "
             "/sharing/webapi/entry.cgi?api=SYNO.FolderSharing.Download&_sharing_id=%22x%22&path=x")
-    assert client._scrub(text) == (
+    assert client.scrub(text) == (
         "HTTPSConnectionPool(host='nas.example.com', port=5001): Max retries exceeded with url: "
         "/sharing/webapi/entry.cgi?api=SYNO.FolderSharing.Download&_sharing_id=…&path=…")

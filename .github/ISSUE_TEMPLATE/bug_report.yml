@@ -44,8 +44,8 @@ body:
     attributes:
       label: Log output
       description: >-
-        Copy the text from the log area at the bottom of the app. The log shows the share link
-        with its last part replaced by "…"; keep it that way, and never add the link or the
-        password. The log can also show the NAS's address and your file names: replace them
+        Copy the text from the log area at the bottom of the app. The log shows only the start of
+        the share link, with the rest replaced by "…"; keep it that way, and never add the link or
+        the password. The log can also show the NAS's address and your file names: replace them
         if you'd rather not share them.
       render: text

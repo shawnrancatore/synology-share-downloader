@@ -170,9 +170,11 @@ No. It's used only to log in to the share for the current session and is not
 saved to disk.
 
 **Can I share the log when I report a problem?**
-Yes, with care. The log shows the share link with its last part, the share's
-id, replaced by `…`, as in `Connecting to http://gofile.me/AbCdE/…`. It never
-shows the password. It can show the NAS's address and the names of your files,
+Yes, with care. The log shows only the start of the share link: the site and
+the first part of the path. The rest, which holds the share's id, is replaced
+by `…`, as in `Connecting to http://gofile.me/AbCdE/…`. Error messages are
+cleaned the same way. The log never shows the password. It can show the NAS's
+address and the names of your files,
 so replace those if you'd rather not share them. Never paste the full link or
 the password into an issue: issues are public.
 

@@ -23,7 +23,7 @@ from tkinter import filedialog, messagebox, ttk
 
 from . import APP_NAME
 from .about import build_help_menu
-from .client import ShareError, SynoShareClient, apply_file_times, redact_share_url
+from .client import ShareError, SynoShareClient, apply_file_times, hide_share_link, redact_share_url
 from .plan import plan_downloads
 from .util import format_eta as _fmt_time
 from .util import human_size as human
@@ -193,9 +193,10 @@ class App:
                 entries = client.list_folder(client.root_path)
                 self.q.put(("connected", (client, entries)))
             except ShareError as e:
-                self.q.put(("connect_fail", str(e)))
+                self.q.put(("connect_fail", hide_share_link(e, url)))
             except Exception as e:
-                self.q.put(("connect_fail", "Unexpected error: %s" % e))
+                # The error text may quote the link, so it is redacted too.
+                self.q.put(("connect_fail", hide_share_link("Unexpected error: %s" % e, url)))
 
         threading.Thread(target=work, daemon=True).start()
 
@@ -395,7 +396,7 @@ class App:
                     with lock:
                         active.pop(rpath, None)
                         st["failed"].append(name)
-                    self.log_msg("ERROR %s -- %s" % (name, e))
+                    self.log_msg("ERROR %s -- %s" % (name, self.client.scrub(e)))
                 emit()
 
             with cf.ThreadPoolExecutor(max_workers=workers) as ex:
@@ -430,7 +431,7 @@ class App:
                 msg += "; %d folder date(s) preserved" % len(dir_stamps)
             self.q.put(("dl_done", msg + "."))
         except Exception as e:
-            self.q.put(("dl_done", "Stopped: %s" % e))
+            self.q.put(("dl_done", "Stopped: %s" % self.client.scrub(e)))
 
     def _ask_size(self, total_bytes, nfiles):
         warn = ""

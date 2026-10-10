@@ -141,9 +141,12 @@ def parse_share_url(url):
     url = url.strip()
     if "://" not in url:
         url = "http://" + url
-    p = urllib.parse.urlparse(url)
-    host = (p.hostname or "").lower()
-    parts = [seg for seg in p.path.split("/") if seg]
+    try:
+        p = urllib.parse.urlparse(url)
+        host = (p.hostname or "").lower()
+    except ValueError:  # its message can quote part of the link
+        host, p = "", None
+    parts = [seg for seg in p.path.split("/") if seg] if p else []
 
     is_gofile = host.endswith("gofile.me")
 
@@ -168,37 +171,94 @@ def parse_share_url(url):
 
 
 def _hide(text, secret):
-    """text with each whole-word occurrence of secret replaced by "…"."""
-    return re.sub(r"(?<![A-Za-z0-9])%s(?![A-Za-z0-9])" % re.escape(secret), "…", text)
+    """text with each whole-word occurrence of secret replaced by "…".
+
+    A word may also start right after a percent-escape, as in "%22<id>%22".
+    """
+    return re.sub(r"(?:(?<![A-Za-z0-9])|(?<=%%[0-9A-Fa-f]{2}))%s(?![A-Za-z0-9])" % re.escape(secret),
+                  "…", text)
+
+
+def _decoded(url):
+    """url trimmed, percent-decoded (up to three times), with "\\" read as "/"."""
+    text = (url or "").strip()
+    for _ in range(3):
+        decoded = urllib.parse.unquote(text)
+        if decoded == text:
+            break
+        text = decoded
+    return text.replace("\\", "/")
+
+
+# What redact_share_url() will show: a dotted host name or IPv4 address with
+# an optional port, and a first path segment made of letters, digits and "-".
+_PLAIN_HOST = re.compile(r"^[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)+(:[0-9]+)?$")
+_PLAIN_SEGMENT = re.compile(r"^[A-Za-z0-9-]+$")
 
 
 def redact_share_url(url):
-    """The share link as it may appear in a log: its last segment becomes "…".
+    """The share link as it may appear in a log, without the share's id.
 
-    The last segment is the share's own id, which is the secret part of the
-    link: "http://gofile.me/AbCdE/ExAmPlE123" -> "http://gofile.me/AbCdE/…".
-    A user name, password, query, fragment or ";" parameter is dropped too,
-    a backslash counts as a "/", and the id parse_share_url() reads from the
-    link is removed wherever it appears.
+    Only the scheme, the host and the first path segment are kept, and only
+    when another segment follows: "http://gofile.me/AbCdE/ExAmPlE123" becomes
+    "http://gofile.me/AbCdE/…". Everything after that is replaced by "…".
+    A lone segment is the id itself, so "gofile.me/ExAmPlE123" becomes
+    "gofile.me/…".
+
+    The link is percent-decoded first (up to three times), a backslash counts
+    as a "/", and a user name is dropped. Anything that is not a plain host
+    and path, such as a bare id or text that does not parse, becomes "…".
+    The id parse_share_url() reads from the link is also removed from the
+    result, wherever it appears.
     """
-    text = (url or "").strip()
-    try:
-        link_id = parse_share_url(text)[1]
-    except (ShareError, ValueError):
-        link_id = None
-    text = text.replace("\\", "/")
+    text = _decoded(url)
     has_scheme = "://" in text
     try:
         parts = urllib.parse.urlsplit(text if has_scheme else "//" + text)
     except ValueError:
         return "…"
     host = parts.netloc.rpartition("@")[2]
-    segs = [s for s in parts.path.split(";", 1)[0].split("/") if s]
+    if not _PLAIN_HOST.match(host) or (has_scheme and parts.scheme not in ("http", "https")):
+        return "…"
+    out = (parts.scheme + "://" if has_scheme else "") + host
+    segs = [seg for seg in parts.path.split("/") if seg]
+    if len(segs) >= 2 and _PLAIN_SEGMENT.match(segs[0]):
+        out += "/" + segs[0]
     if segs:
-        segs[-1] = "…"
-    out = host + "".join("/" + s for s in segs)
-    out = parts.scheme + "://" + out if has_scheme else out
+        out += "/…"
+    try:
+        link_id = parse_share_url(text)[1]
+    except ShareError:
+        link_id = None
     return _hide(out, link_id) if link_id else out
+
+
+_WORD = re.compile(r"[A-Za-z0-9]+")
+
+
+def hide_share_link(text, url):
+    """text, safe to log: nothing of the share link url beyond its redacted form.
+
+    The link itself is replaced by redact_share_url(url). Then every word of
+    the link, as pasted and at each level of percent-decoding, that the
+    redacted form does not show is replaced by "…". So an error message that
+    quotes part of the link cannot carry the share's id.
+    """
+    raw = (url or "").strip()
+    shown = redact_share_url(raw)
+    text = str(text)
+    if raw:
+        text = text.replace(raw, shown)
+    words, form = set(), raw.replace("\\", "/")
+    for _ in range(10):
+        words.update(_WORD.findall(form))
+        decoded = urllib.parse.unquote(form)
+        if decoded == form:
+            break
+        form = decoded
+    for word in sorted(words - set(_WORD.findall(shown)), key=len, reverse=True):
+        text = _hide(text, word)
+    return text
 
 
 class SynoShareClient:
@@ -229,7 +289,7 @@ class SynoShareClient:
         self.is_folder = True
 
     # ---- low level -------------------------------------------------------
-    def _scrub(self, text):
+    def scrub(self, text):
         """text with the share's id replaced by "…", for logs and error messages.
 
         Request errors can quote the URL, and download URLs carry the id as
@@ -240,7 +300,7 @@ class SynoShareClient:
         text = str(text)
         for form in (urllib.parse.quote_plus(quoted), quoted):
             text = text.replace(form, "…")
-        return _hide(text, self.link_id)
+        return hide_share_link(_hide(text, self.link_id), self.share_url)
 
     def _refuse_links(self, local_path, part):
         """Log and return True if local_path or its .part file is a link."""
@@ -298,7 +358,7 @@ class SynoShareClient:
                 last_err = str(e)
         if not info:
             raise ShareError("Could not locate the Synology server for that link.\n(%s)"
-                             % self._scrub(last_err))
+                             % self.scrub(last_err))
 
         self._server_info = info
         candidates = self._candidates(info)
@@ -563,7 +623,7 @@ class SynoShareClient:
                 if stop and stop():
                     return False
                 if attempt >= retries:
-                    raise ShareError("Failed after %d attempts: %s" % (retries, self._scrub(e)))
+                    raise ShareError("Failed after %d attempts: %s" % (retries, self.scrub(e)))
                 wait = min(2 ** attempt, 15)
-                self._log("  retry %d/%d in %ds (%s)" % (attempt, retries, wait, self._scrub(e)))
+                self._log("  retry %d/%d in %ds (%s)" % (attempt, retries, wait, self.scrub(e)))
                 time.sleep(wait)
