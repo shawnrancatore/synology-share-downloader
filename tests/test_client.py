@@ -58,7 +58,7 @@ def test_apply_file_times(tmp_path):
     ("https://quickconnect.to/AbCdE/ExAmPlE123", "https://quickconnect.to/AbCdE/\u2026"),
     ("https://acme.quickconnect.to/sharing/ExAmPlE123", "https://acme.quickconnect.to/sharing/\u2026"),
     ("http://gofile.me/AbCdE/ExAmPlE123?x=ExAmPlE123#ExAmPlE123", "http://gofile.me/AbCdE/\u2026"),
-    ("http://you:ExAmPlE123@gofile.me/AbCdE/ExAmPlE123", "http://gofile.me/AbCdE/\u2026"),
+    ("http://you@example.com/AbCdE/ExAmPlE123", "http://example.com/AbCdE/\u2026"),
     ("http://[bad/ExAmPlE123", "\u2026"),
     ("", ""),
 ])
