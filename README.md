@@ -144,27 +144,27 @@ on, each release carries a `SHA256SUMS.txt` with the SHA-256 of each archive.
 Compare your download with it (use the version you downloaded):
 
 ```powershell
-Get-FileHash .\SynologyShareDownloader-v1.2.1-win64.zip -Algorithm SHA256
+Get-FileHash .\SynologyShareDownloader-v1.3.0-win64.zip -Algorithm SHA256
 ```
 
 ```sh
-shasum -a 256 SynologyShareDownloader-v1.2.1-macos-arm64.zip     # macOS
-sha256sum SynologyShareDownloader-v1.2.1-linux-x86_64.tar.gz     # Linux
+shasum -a 256 SynologyShareDownloader-v1.3.0-macos-arm64.zip     # macOS
+sha256sum SynologyShareDownloader-v1.3.0-linux-x86_64.tar.gz     # Linux
 ```
 
 The release workflow also records a build-provenance attestation for the
 archives: signed proof that they were built by that workflow from this repo. A
-failure in that step does not stop a release, so a release can lack one. v1.2.1
+failure in that step does not stop a release, so a release can lack one. v1.3.0
 has one. Check it with the GitHub CLI:
 
 ```sh
-gh attestation verify SynologyShareDownloader-v1.2.1-linux-x86_64.tar.gz \
+gh attestation verify SynologyShareDownloader-v1.3.0-linux-x86_64.tar.gz \
   --repo shawnrancatore/synology-share-downloader
 ```
 
 **How to tell it worked:** the hash matches the line for your file in
 `SHA256SUMS.txt`, and the `gh` command prints `✓ Verification succeeded!` with
-`Build workflow:. .github/workflows/release.yml@refs/tags/v1.2.1`.
+`Build workflow:. .github/workflows/release.yml@refs/tags/v1.3.0`.
 
 On Windows, removing the first-run prompt needs Authenticode code signing, such
 as an OV or EV certificate or [Azure Trusted Signing][ats]. A signing step
