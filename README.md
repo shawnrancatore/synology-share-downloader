@@ -5,6 +5,7 @@
 **Download a Synology share link file by file, with resume, instead of as one giant ZIP.**
 
 <!-- bricoleur:intro -->
+> Part of **[bricoleur.ai](https://bricoleur.ai)**: small, honest tools cobbled together from the AI-era parts at hand.
 <!-- /bricoleur:intro -->
 
 [![Release](https://img.shields.io/github/v/release/shawnrancatore/synology-share-downloader?sort=semver)](https://github.com/shawnrancatore/synology-share-downloader/releases)
@@ -251,4 +252,6 @@ From share link to finished download, with the reasoning behind each limit:
 **[bricoleur.ai/projects/synology-share-downloader](https://bricoleur.ai/projects/synology-share-downloader)**.
 
 <!-- bricoleur:footer -->
+---
+Part of **[bricoleur.ai](https://bricoleur.ai)** · [Full guide](https://bricoleur.ai/projects/synology-share-downloader) · Apache-2.0 © 2026 Dynamo Foundry LLC
 <!-- /bricoleur:footer -->
