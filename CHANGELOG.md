@@ -6,6 +6,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.3.0] — 2026-10-11
+
 ### Security
 - **Downloads stay inside the destination folder.** File and folder names come
   from the server, and a hostile share could list names such as `../x`,
@@ -137,6 +139,7 @@ Initial public release.
 - Single portable Windows `.exe` build via PyInstaller, plus a portable release
   `.zip`, produced automatically on tagged releases.
 
+[1.3.0]: https://github.com/shawnrancatore/synology-share-downloader/releases/tag/v1.3.0
 [1.2.1]: https://github.com/shawnrancatore/synology-share-downloader/releases/tag/v1.2.1
 [1.2.0]: https://github.com/shawnrancatore/synology-share-downloader/releases/tag/v1.2.0
 [1.1.0]: https://github.com/shawnrancatore/synology-share-downloader/releases/tag/v1.1.0

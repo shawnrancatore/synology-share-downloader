@@ -31,7 +31,7 @@ body:
     attributes:
       label: App version
       description: See Help → About.
-      placeholder: "1.2.1"
+      placeholder: "1.3.0"
     validations:
       required: true
   - type: input
